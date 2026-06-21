@@ -1,0 +1,129 @@
+name: Kotlin / Push CI
+
+on:
+  workflow_call:
+    inputs:
+      skip-on-no-changes:
+        description: "Skip pipeline if no Kotlin/Gradle files changed. Set false to always run."
+        type: boolean
+        default: false
+      java-version:
+        type: string
+        default: '21'
+      python-version:
+        type: string
+        default: '3.12'
+      pre-test-command:
+        description: "Shell commands to run before each JVM test job (e.g. archive generation). Supports && chaining."
+        type: string
+        default: ''
+      avd-name:
+        type: string
+        default: 'app_test_avd'
+      archives-local-dir:
+        description: "Local directory with archives to push to device after emulator boots."
+        type: string
+        default: ''
+      device-archives-path:
+        description: "Device path where archives are pushed."
+        type: string
+        default: ''
+      coverage-threshold:
+        type: number
+        default: 80
+      apk-size-limit-mb:
+        type: number
+        default: 50
+      app-name:
+        description: "App name used for coverage badge gist filename"
+        type: string
+        default: 'app'
+      retention-days:
+        type: number
+        default: 7
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  # Always runs — lightweight, drives skip-on-no-changes gating below
+  detect-changes:
+    uses: ./.github/workflows/kotlin/reusable/detect-changes.yml
+
+  validation:
+    needs: detect-changes
+    if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true'
+    uses: ./.github/workflows/kotlin/reusable/validation.yml
+
+  lint-checks:
+    needs: detect-changes
+    if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true'
+    uses: ./.github/workflows/kotlin/reusable/lint-checks.yml
+    secrets: inherit
+    with:
+      java-version: ${{ inputs.java-version }}
+
+  unit-tests:
+    needs: detect-changes
+    if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true'
+    uses: ./.github/workflows/kotlin/reusable/unit-tests.yml
+    with:
+      java-version: ${{ inputs.java-version }}
+      python-version: ${{ inputs.python-version }}
+      pre-test-command: ${{ inputs.pre-test-command }}
+      retention-days: ${{ inputs.retention-days }}
+
+  integration-mock:
+    needs: [detect-changes, unit-tests]
+    if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true'
+    uses: ./.github/workflows/kotlin/reusable/integration-mock.yml
+    with:
+      java-version: ${{ inputs.java-version }}
+      python-version: ${{ inputs.python-version }}
+      pre-test-command: ${{ inputs.pre-test-command }}
+      retention-days: ${{ inputs.retention-days }}
+
+  integration-real:
+    needs: [detect-changes, integration-mock]
+    if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true'
+    uses: ./.github/workflows/kotlin/reusable/integration-real.yml
+    with:
+      java-version: ${{ inputs.java-version }}
+      python-version: ${{ inputs.python-version }}
+      pre-test-command: ${{ inputs.pre-test-command }}
+      retention-days: ${{ inputs.retention-days }}
+
+  build-apk:
+    needs: [detect-changes, integration-real]
+    if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true'
+    uses: ./.github/workflows/kotlin/reusable/build-apk.yml
+    with:
+      java-version: ${{ inputs.java-version }}
+      apk-size-limit-mb: ${{ inputs.apk-size-limit-mb }}
+      retention-days: ${{ inputs.retention-days }}
+
+  coverage:
+    needs: [detect-changes, integration-real]
+    if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true'
+    uses: ./.github/workflows/kotlin/reusable/coverage.yml
+    secrets: inherit
+    with:
+      java-version: ${{ inputs.java-version }}
+      python-version: ${{ inputs.python-version }}
+      pre-test-command: ${{ inputs.pre-test-command }}
+      coverage-threshold: ${{ inputs.coverage-threshold }}
+      app-name: ${{ inputs.app-name }}
+      retention-days: ${{ inputs.retention-days }}
+
+  instrumented-tests:
+    needs: [detect-changes, build-apk]
+    if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true'
+    uses: ./.github/workflows/kotlin/reusable/instrumented-tests.yml
+    with:
+      java-version: ${{ inputs.java-version }}
+      python-version: ${{ inputs.python-version }}
+      avd-name: ${{ inputs.avd-name }}
+      pre-test-command: ${{ inputs.pre-test-command }}
+      archives-local-dir: ${{ inputs.archives-local-dir }}
+      device-archives-path: ${{ inputs.device-archives-path }}
+      retention-days: ${{ inputs.retention-days }}

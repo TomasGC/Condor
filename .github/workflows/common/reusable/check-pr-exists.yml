@@ -1,0 +1,56 @@
+name: Common / Check PR Exists
+
+on:
+  workflow_call:
+    inputs:
+      push-ci-conclusion:
+        type: string
+        required: true
+      head-branch:
+        type: string
+        required: true
+    outputs:
+      has_pr:
+        value: ${{ jobs.find.outputs.has_pr }}
+      pr_number:
+        value: ${{ jobs.find.outputs.pr_number }}
+      pr_title:
+        value: ${{ jobs.find.outputs.pr_title }}
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  find:
+    name: Find Open PR
+    runs-on: ubuntu-latest
+    if: inputs.push-ci-conclusion == 'success'
+    outputs:
+      has_pr: ${{ steps.find-pr.outputs.has_pr }}
+      pr_number: ${{ steps.find-pr.outputs.pr_number }}
+      pr_title: ${{ steps.find-pr.outputs.pr_title }}
+    steps:
+      - name: Find open PR for branch
+        id: find-pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH="${{ inputs.head-branch }}"
+          REPO="${{ github.repository }}"
+          echo "Looking for open PR targeting main from branch: $BRANCH"
+
+          PR=$(gh pr list --repo "$REPO" --head "$BRANCH" --base main --state open --json number,title --jq '.[0]')
+
+          if [ -z "$PR" ] || [ "$PR" = "null" ]; then
+            echo "No open PR found for branch $BRANCH - skipping PR-CI"
+            echo "has_pr=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          PR_NUMBER=$(echo "$PR" | jq -r '.number')
+          PR_TITLE=$(echo "$PR" | jq -r '.title')
+
+          echo "Found PR #$PR_NUMBER: $PR_TITLE"
+          echo "has_pr=true" >> $GITHUB_OUTPUT
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          echo "pr_title=$PR_TITLE" >> $GITHUB_OUTPUT

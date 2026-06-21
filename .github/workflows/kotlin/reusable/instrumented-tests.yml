@@ -1,0 +1,129 @@
+name: Kotlin / Instrumented Tests
+
+on:
+  workflow_call:
+    inputs:
+      java-version:
+        type: string
+        default: '21'
+      python-version:
+        type: string
+        default: '3.12'
+      avd-name:
+        description: "Android Virtual Device name to create and run tests on"
+        type: string
+        default: 'app_test_avd'
+      pre-test-command:
+        description: "Shell commands to run before tests (e.g. generate test archives)."
+        type: string
+        default: ''
+      archives-local-dir:
+        description: "Local directory with archives to push to device (e.g. archives/)."
+        type: string
+        default: ''
+      device-archives-path:
+        description: "Device path where archives should be pushed (e.g. /sdcard/otter)."
+        type: string
+        default: ''
+      retention-days:
+        type: number
+        default: 7
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  instrumented:
+    name: Instrumented Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: ${{ inputs.java-version }}
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-read-only: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Install system image
+        run: ./gradlew pixel4api30Setup
+
+      - name: Create AVD
+        env:
+          ANDROID_AVD_HOME: /home/runner/.android/avd
+        run: |
+          mkdir -p /home/runner/.android/avd
+          echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd \
+            -n "${{ inputs.avd-name }}" \
+            -k "system-images;android-30;default;x86_64" \
+            --device "pixel_4" \
+            --force
+          AVD_DIR="/home/runner/.android/avd/${{ inputs.avd-name }}.avd"
+          sed -i '/^disk.dataPartition.size/d' "$AVD_DIR/config.ini"
+          echo "disk.dataPartition.size=8G" >> "$AVD_DIR/config.ini"
+          rm -f "$AVD_DIR/userdata-qemu.img" "$AVD_DIR/userdata.img"
+          echo "AVD created: $($ANDROID_HOME/cmdline-tools/latest/bin/avdmanager list avd -c)"
+
+      - name: Start emulator
+        timeout-minutes: 20
+        env:
+          ANDROID_AVD_HOME: /home/runner/.android/avd
+        run: |
+          export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
+          AVD_NAME="${{ inputs.avd-name }}"
+          echo "Starting AVD: $AVD_NAME"
+          $ANDROID_HOME/emulator/emulator \
+            -avd "$AVD_NAME" \
+            -no-snapshot-load \
+            -no-audio \
+            -no-boot-anim \
+            -gpu swiftshader_indirect \
+            -no-window \
+            -partition-size 8192 \
+            -sdcard 2048M &
+          echo "Waiting for emulator boot..."
+          timeout 600 adb wait-for-device
+          adb shell 'until [[ "$(getprop sys.boot_completed)" == "1" ]]; do sleep 2; done'
+          sleep 5
+          echo "Emulator ready"
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+
+      - name: Generate test archives
+        if: inputs.pre-test-command != ''
+        run: ${{ inputs.pre-test-command }}
+
+      - name: Push archives to device
+        if: inputs.archives-local-dir != '' && inputs.device-archives-path != ''
+        run: |
+          adb shell mkdir -p ${{ inputs.device-archives-path }}
+          adb push ${{ inputs.archives-local-dir }} ${{ inputs.device-archives-path }}
+
+      - name: Run instrumented tests
+        run: ./gradlew connectedDebugAndroidTest
+
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: instrumented-test-results
+          path: app/build/reports/androidTests/connected/
+          retention-days: ${{ inputs.retention-days }}
+
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: instrumented-coverage
+          path: app/build/outputs/code_coverage/
+          retention-days: ${{ inputs.retention-days }}

@@ -1,0 +1,41 @@
+name: Python / Coverage
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        type: string
+        default: '3.12'
+      scripts-dir:
+        type: string
+        default: 'scripts'
+      coverage-threshold:
+        type: number
+        default: 80
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.scripts-dir }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+      - run: pip install -r requirements-test.txt
+      - name: Run coverage (unit + integration_mock + integration_real)
+        run: |
+          python -m pytest \
+            tests/unit/ \
+            tests/integration_mock/ \
+            tests/integration_real/ \
+            --cov=src \
+            --cov-report=term-missing \
+            --cov-fail-under=${{ inputs.coverage-threshold }} \
+            -q

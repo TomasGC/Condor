@@ -1,0 +1,29 @@
+name: Python / Integration Tests Real
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        type: string
+        default: '3.12'
+      scripts-dir:
+        type: string
+        default: 'scripts'
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  real:
+    name: Integration Tests / Real
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.scripts-dir }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+      - run: pip install -r requirements-test.txt
+      - run: python -m pytest tests/integration_real/ --no-cov -q

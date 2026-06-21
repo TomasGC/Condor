@@ -1,0 +1,33 @@
+name: Python / Detect Changes
+
+on:
+  workflow_call:
+    inputs:
+      scripts-dir:
+        description: "Directory where Python scripts live (relative to repo root)"
+        type: string
+        default: 'scripts'
+    outputs:
+      scripts:
+        description: "Whether Python scripts changed"
+        value: ${{ jobs.detect.outputs.scripts }}
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  detect:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      scripts: ${{ steps.filter.outputs.scripts }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            scripts:
+              - '${{ inputs.scripts-dir }}/**/*.py'
+              - '${{ inputs.scripts-dir }}/pytest.ini'
+              - '${{ inputs.scripts-dir }}/requirements-test.txt'

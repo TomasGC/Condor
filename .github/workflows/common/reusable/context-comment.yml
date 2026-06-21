@@ -1,0 +1,73 @@
+name: Common / Context Comment
+
+on:
+  workflow_call:
+    inputs:
+      pr-number:
+        type: string
+        required: true
+      missing:
+        type: string
+        default: ''
+      warnings:
+        type: string
+        default: ''
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  comment:
+    name: Comment on PR (Context Missing)
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ inputs.pr-number }}
+          MISSING: ${{ inputs.missing }}
+          WARNINGS: ${{ inputs.warnings }}
+        with:
+          script: |
+            const missing = process.env.MISSING || '';
+            const warnings = process.env.WARNINGS || '';
+            const prNumber = parseInt(process.env.PR_NUMBER, 10);
+
+            let body = `## Context Files Not Updated\n\n`;
+            body += `This PR modifies code but required context files are missing.\n\n`;
+
+            if (missing.includes('kanban.md')) {
+              body += `### .claude/contexts/kanban.md (MANDATORY)\n\n`;
+              body += `- Add entry for this PR/issue\n`;
+              body += `- Update task status\n`;
+              body += `- Document what was done\n\n`;
+            }
+
+            if (warnings.includes('architecture.md')) {
+              body += `### .claude/contexts/architecture.md (Recommended)\n\n`;
+              body += `Architectural changes detected (new classes, interfaces, DI changes).\n`;
+              body += `Consider updating if:\n`;
+              body += `- New modules or layers added\n`;
+              body += `- Design patterns changed\n`;
+              body += `- Component responsibilities changed\n\n`;
+            }
+
+            if (warnings.includes('tests.md')) {
+              body += `### .claude/contexts/tests.md (Recommended)\n\n`;
+              body += `Test files changed. Consider updating if:\n`;
+              body += `- New test categories or tiers added\n`;
+              body += `- Test counts or structure changed\n\n`;
+            }
+
+            body += `---\n`;
+            body += `**Why this matters**: Context files preserve project knowledge between sessions and make reviews easier.\n\n`;
+            body += `*Tip: Update the files and amend your commit.*`;
+
+            github.rest.issues.createComment({
+              issue_number: prNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });

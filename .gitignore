@@ -1,0 +1,13 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+
+# Claude Code
+.claude/*.local.*
+.claude/tmpclaude/
+.claude/sessions/
+.claude/logs/

@@ -1,0 +1,63 @@
+name: Common / PR-CI
+
+on:
+  workflow_call:
+    inputs:
+      push-ci-conclusion:
+        description: "Conclusion of the Push-CI workflow run"
+        type: string
+        required: true
+      head-branch:
+        description: "Head branch of the triggering push"
+        type: string
+        required: true
+      head-sha:
+        description: "Head SHA for checkout"
+        type: string
+        required: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  check-pr-exists:
+    uses: ./.github/workflows/common/reusable/check-pr-exists.yml
+    secrets: inherit
+    with:
+      push-ci-conclusion: ${{ inputs.push-ci-conclusion }}
+      head-branch: ${{ inputs.head-branch }}
+
+  pr-validation:
+    needs: check-pr-exists
+    if: needs.check-pr-exists.outputs.has_pr == 'true'
+    uses: ./.github/workflows/common/reusable/pr-title-validation.yml
+    with:
+      pr-title: ${{ needs.check-pr-exists.outputs.pr_title }}
+
+  context-check:
+    needs: check-pr-exists
+    if: needs.check-pr-exists.outputs.has_pr == 'true'
+    uses: ./.github/workflows/common/reusable/context-check.yml
+    with:
+      head-sha: ${{ inputs.head-sha }}
+
+  context-comment:
+    needs: [check-pr-exists, context-check]
+    if: always() && needs.check-pr-exists.outputs.has_pr == 'true' && needs.context-check.result == 'failure'
+    uses: ./.github/workflows/common/reusable/context-comment.yml
+    permissions:
+      pull-requests: write
+    with:
+      pr-number: ${{ needs.check-pr-exists.outputs.pr_number }}
+      missing: ${{ needs.context-check.outputs.missing }}
+      warnings: ${{ needs.context-check.outputs.warnings }}
+
+  security-checks:
+    needs: check-pr-exists
+    if: needs.check-pr-exists.outputs.has_pr == 'true'
+    uses: ./.github/workflows/common/reusable/security-checks.yml
+    permissions:
+      contents: read
+      pull-requests: write
+    with:
+      head-sha: ${{ inputs.head-sha }}

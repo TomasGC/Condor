@@ -1,0 +1,82 @@
+name: Python / Push CI
+
+on:
+  workflow_call:
+    inputs:
+      skip-on-no-changes:
+        description: "Skip pipeline if no Python files changed. Set false to always run."
+        type: boolean
+        default: true
+      python-version:
+        type: string
+        default: '3.12'
+      scripts-dir:
+        description: "Directory where Python scripts live (relative to repo root)"
+        type: string
+        default: 'scripts'
+      coverage-threshold:
+        type: number
+        default: 80
+      pylint-fail-under:
+        type: number
+        default: 7
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  # Always runs — lightweight, drives skip-on-no-changes gating below
+  detect-changes:
+    uses: ./.github/workflows/python/reusable/detect-changes.yml
+    with:
+      scripts-dir: ${{ inputs.scripts-dir }}
+
+  unit-tests:
+    needs: detect-changes
+    if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.scripts == 'true'
+    uses: ./.github/workflows/python/reusable/unit-tests.yml
+    with:
+      python-version: ${{ inputs.python-version }}
+      scripts-dir: ${{ inputs.scripts-dir }}
+
+  lint-checks:
+    needs: detect-changes
+    if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.scripts == 'true'
+    uses: ./.github/workflows/python/reusable/lint-checks.yml
+    with:
+      python-version: ${{ inputs.python-version }}
+      scripts-dir: ${{ inputs.scripts-dir }}
+      pylint-fail-under: ${{ inputs.pylint-fail-under }}
+
+  integration-mock:
+    needs: [detect-changes, unit-tests]
+    if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.scripts == 'true'
+    uses: ./.github/workflows/python/reusable/integration-mock.yml
+    with:
+      python-version: ${{ inputs.python-version }}
+      scripts-dir: ${{ inputs.scripts-dir }}
+
+  integration-real:
+    needs: [detect-changes, integration-mock]
+    if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.scripts == 'true'
+    uses: ./.github/workflows/python/reusable/integration-real.yml
+    with:
+      python-version: ${{ inputs.python-version }}
+      scripts-dir: ${{ inputs.scripts-dir }}
+
+  coverage:
+    needs: [detect-changes, integration-real]
+    if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.scripts == 'true'
+    uses: ./.github/workflows/python/reusable/coverage.yml
+    with:
+      python-version: ${{ inputs.python-version }}
+      scripts-dir: ${{ inputs.scripts-dir }}
+      coverage-threshold: ${{ inputs.coverage-threshold }}
+
+  e2e:
+    needs: [detect-changes, integration-real]
+    if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.scripts == 'true'
+    uses: ./.github/workflows/python/reusable/e2e-tests.yml
+    with:
+      python-version: ${{ inputs.python-version }}
+      scripts-dir: ${{ inputs.scripts-dir }}

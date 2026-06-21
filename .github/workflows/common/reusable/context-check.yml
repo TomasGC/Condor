@@ -1,0 +1,87 @@
+name: Common / Context Check
+
+on:
+  workflow_call:
+    inputs:
+      head-sha:
+        type: string
+        required: true
+    outputs:
+      needs_update:
+        value: ${{ jobs.check.outputs.needs_update }}
+      missing:
+        value: ${{ jobs.check.outputs.missing }}
+      warnings:
+        value: ${{ jobs.check.outputs.warnings }}
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  check:
+    name: Verify Context Files Updated
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      needs_update: ${{ steps.check.outputs.needs_update }}
+      missing: ${{ steps.check.outputs.missing }}
+      warnings: ${{ steps.check.outputs.warnings }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.head-sha }}
+
+      - name: Check if contexts are updated
+        id: check
+        run: |
+          echo "Checking context files..."
+
+          CODE_CHANGES=$(git diff --name-only origin/main...HEAD | grep -E '^app/src/' || true)
+          TEST_CHANGES=$(git diff --name-only origin/main...HEAD | grep -E '^app/src/(test|androidTest)/' || true)
+          KANBAN_UPDATED=$(git diff --name-only origin/main...HEAD | grep -E '^\.claude/contexts/kanban\.md$' || true)
+          ARCHITECTURE_UPDATED=$(git diff --name-only origin/main...HEAD | grep -E '^\.claude/contexts/architecture\.md$' || true)
+          TESTS_UPDATED=$(git diff --name-only origin/main...HEAD | grep -E '^\.claude/contexts/tests\.md$' || true)
+
+          MISSING_FILES=""
+          WARNINGS=""
+
+          # kanban.md: mandatory for any code changes
+          if [ -n "$CODE_CHANGES" ] && [ -z "$KANBAN_UPDATED" ]; then
+            echo "ERROR: .claude/contexts/kanban.md not updated (MANDATORY)"
+            MISSING_FILES="kanban.md"
+          fi
+
+          if [ -n "$CODE_CHANGES" ]; then
+            # architecture.md: recommended for architectural changes
+            ARCH_CHANGES=$(git diff origin/main...HEAD -- app/src/ | grep -E '(class |interface |object |enum |data class |sealed |fun |@Inject|@Singleton|@HiltViewModel|Repository|UseCase|ViewModel)' || true)
+            if [ -n "$ARCH_CHANGES" ] && [ -z "$ARCHITECTURE_UPDATED" ]; then
+              echo "WARNING: .claude/contexts/architecture.md not updated (architectural changes detected)"
+              WARNINGS="architecture.md"
+            fi
+
+            # tests.md: recommended when test structure changes
+            if [ -n "$TEST_CHANGES" ] && [ -z "$TESTS_UPDATED" ]; then
+              echo "WARNING: .claude/contexts/tests.md not updated (test files changed)"
+              WARNINGS="${WARNINGS:+$WARNINGS,}tests.md"
+            fi
+          fi
+
+          if [ -n "$MISSING_FILES" ]; then
+            echo "needs_update=true" >> $GITHUB_OUTPUT
+            echo "missing=$MISSING_FILES" >> $GITHUB_OUTPUT
+            echo "warnings=$WARNINGS" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          if [ -n "$WARNINGS" ]; then
+            echo "needs_update=warning" >> $GITHUB_OUTPUT
+            echo "missing=" >> $GITHUB_OUTPUT
+            echo "warnings=$WARNINGS" >> $GITHUB_OUTPUT
+          else
+            echo "needs_update=false" >> $GITHUB_OUTPUT
+            echo "missing=" >> $GITHUB_OUTPUT
+            echo "warnings=" >> $GITHUB_OUTPUT
+            echo "SUCCESS: Context files updated"
+          fi

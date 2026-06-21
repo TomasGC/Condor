@@ -1,0 +1,30 @@
+name: Common / PR Title Validation
+
+on:
+  workflow_call:
+    inputs:
+      pr-title:
+        type: string
+        required: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  validate:
+    name: Validate PR Title Format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check PR title format
+        env:
+          PR_TITLE: ${{ inputs.pr-title }}
+        run: |
+          if ! echo "$PR_TITLE" | grep -qE '^#[0-9]+: (feat|fix|refactor|test|docs|chore|style|perf):'; then
+            echo "ERROR: PR title must follow format: #123: type: description"
+            echo "Examples:"
+            echo "  #1: feat: add ZIP extraction"
+            echo "  #2: fix: resolve null pointer in extractor"
+            echo "  #3: refactor: extract repository pattern"
+            exit 1
+          fi
+          echo "SUCCESS: PR title format valid"

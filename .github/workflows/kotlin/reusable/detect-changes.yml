@@ -1,0 +1,31 @@
+name: Kotlin / Detect Changes
+
+on:
+  workflow_call:
+    outputs:
+      kotlin:
+        description: "Whether Kotlin/Gradle files changed"
+        value: ${{ jobs.detect.outputs.kotlin }}
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  detect:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      kotlin: ${{ steps.filter.outputs.kotlin }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            kotlin:
+              - 'app/src/**'
+              - 'app/build.gradle.kts'
+              - 'build.gradle.kts'
+              - 'settings.gradle.kts'
+              - 'gradle/**'
+              - 'gradle.properties'
