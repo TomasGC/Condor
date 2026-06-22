@@ -85,7 +85,7 @@ jobs:
   owasp:
     name: Lint Checks / Dependencies
     runs-on: ubuntu-latest
-    continue-on-error: true  # NVD outage: remove once refresh workflow bootstraps cache
+    continue-on-error: true  # Remove after first nvd-refresh workflow_dispatch run in otter
     # NVD database download is throttled without NVD_API_KEY (5 req/30s)
     timeout-minutes: 45
     steps:

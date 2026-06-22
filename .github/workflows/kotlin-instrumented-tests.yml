@@ -81,6 +81,8 @@ jobs:
           ANDROID_AVD_HOME: /home/runner/.android/avd
         run: |
           export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
+          echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
+          echo "$ANDROID_HOME/emulator" >> $GITHUB_PATH
           AVD_NAME="${{ inputs.avd-name }}"
           echo "Starting AVD: $AVD_NAME"
           $ANDROID_HOME/emulator/emulator \
@@ -109,7 +111,9 @@ jobs:
         if: inputs.archives-local-dir != '' && inputs.device-archives-path != ''
         run: |
           adb shell mkdir -p ${{ inputs.device-archives-path }}
-          adb push ${{ inputs.archives-local-dir }} ${{ inputs.device-archives-path }}
+          for f in ${{ inputs.archives-local-dir }}*; do
+            [ -f "$f" ] && adb push "$f" ${{ inputs.device-archives-path }}/
+          done
 
       - name: Run instrumented tests
         run: ./gradlew connectedDebugAndroidTest

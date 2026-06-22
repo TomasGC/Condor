@@ -48,17 +48,17 @@ env:
 jobs:
   # Always runs — lightweight, drives skip-on-no-changes gating below
   detect-changes:
-    uses: ./.github/workflows/kotlin/reusable/detect-changes.yml
+    uses: ./.github/workflows/kotlin-detect-changes.yml
 
   validation:
     needs: detect-changes
     if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true'
-    uses: ./.github/workflows/kotlin/reusable/validation.yml
+    uses: ./.github/workflows/kotlin-validation.yml
 
   lint-checks:
     needs: detect-changes
     if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true'
-    uses: ./.github/workflows/kotlin/reusable/lint-checks.yml
+    uses: ./.github/workflows/kotlin-lint-checks.yml
     secrets: inherit
     with:
       java-version: ${{ inputs.java-version }}
@@ -66,7 +66,7 @@ jobs:
   unit-tests:
     needs: detect-changes
     if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true'
-    uses: ./.github/workflows/kotlin/reusable/unit-tests.yml
+    uses: ./.github/workflows/kotlin-unit-tests.yml
     with:
       java-version: ${{ inputs.java-version }}
       python-version: ${{ inputs.python-version }}
@@ -76,7 +76,7 @@ jobs:
   integration-mock:
     needs: [detect-changes, unit-tests]
     if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true'
-    uses: ./.github/workflows/kotlin/reusable/integration-mock.yml
+    uses: ./.github/workflows/kotlin-integration-mock.yml
     with:
       java-version: ${{ inputs.java-version }}
       python-version: ${{ inputs.python-version }}
@@ -86,7 +86,7 @@ jobs:
   integration-real:
     needs: [detect-changes, integration-mock]
     if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true'
-    uses: ./.github/workflows/kotlin/reusable/integration-real.yml
+    uses: ./.github/workflows/kotlin-integration-real.yml
     with:
       java-version: ${{ inputs.java-version }}
       python-version: ${{ inputs.python-version }}
@@ -96,7 +96,7 @@ jobs:
   build-apk:
     needs: [detect-changes, integration-real]
     if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true'
-    uses: ./.github/workflows/kotlin/reusable/build-apk.yml
+    uses: ./.github/workflows/kotlin-build-apk.yml
     with:
       java-version: ${{ inputs.java-version }}
       apk-size-limit-mb: ${{ inputs.apk-size-limit-mb }}
@@ -105,7 +105,7 @@ jobs:
   coverage:
     needs: [detect-changes, integration-real]
     if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true'
-    uses: ./.github/workflows/kotlin/reusable/coverage.yml
+    uses: ./.github/workflows/kotlin-coverage.yml
     secrets: inherit
     with:
       java-version: ${{ inputs.java-version }}
@@ -118,7 +118,7 @@ jobs:
   instrumented-tests:
     needs: [detect-changes, build-apk]
     if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true'
-    uses: ./.github/workflows/kotlin/reusable/instrumented-tests.yml
+    uses: ./.github/workflows/kotlin-instrumented-tests.yml
     with:
       java-version: ${{ inputs.java-version }}
       python-version: ${{ inputs.python-version }}

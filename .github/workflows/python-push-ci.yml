@@ -27,14 +27,14 @@ env:
 jobs:
   # Always runs — lightweight, drives skip-on-no-changes gating below
   detect-changes:
-    uses: ./.github/workflows/python/reusable/detect-changes.yml
+    uses: ./.github/workflows/python-detect-changes.yml
     with:
       scripts-dir: ${{ inputs.scripts-dir }}
 
   unit-tests:
     needs: detect-changes
     if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.scripts == 'true'
-    uses: ./.github/workflows/python/reusable/unit-tests.yml
+    uses: ./.github/workflows/python-unit-tests.yml
     with:
       python-version: ${{ inputs.python-version }}
       scripts-dir: ${{ inputs.scripts-dir }}
@@ -42,7 +42,7 @@ jobs:
   lint-checks:
     needs: detect-changes
     if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.scripts == 'true'
-    uses: ./.github/workflows/python/reusable/lint-checks.yml
+    uses: ./.github/workflows/python-lint-checks.yml
     with:
       python-version: ${{ inputs.python-version }}
       scripts-dir: ${{ inputs.scripts-dir }}
@@ -51,7 +51,7 @@ jobs:
   integration-mock:
     needs: [detect-changes, unit-tests]
     if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.scripts == 'true'
-    uses: ./.github/workflows/python/reusable/integration-mock.yml
+    uses: ./.github/workflows/python-integration-mock.yml
     with:
       python-version: ${{ inputs.python-version }}
       scripts-dir: ${{ inputs.scripts-dir }}
@@ -59,7 +59,7 @@ jobs:
   integration-real:
     needs: [detect-changes, integration-mock]
     if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.scripts == 'true'
-    uses: ./.github/workflows/python/reusable/integration-real.yml
+    uses: ./.github/workflows/python-integration-real.yml
     with:
       python-version: ${{ inputs.python-version }}
       scripts-dir: ${{ inputs.scripts-dir }}
@@ -67,7 +67,7 @@ jobs:
   coverage:
     needs: [detect-changes, integration-real]
     if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.scripts == 'true'
-    uses: ./.github/workflows/python/reusable/coverage.yml
+    uses: ./.github/workflows/python-coverage.yml
     with:
       python-version: ${{ inputs.python-version }}
       scripts-dir: ${{ inputs.scripts-dir }}
@@ -76,7 +76,7 @@ jobs:
   e2e:
     needs: [detect-changes, integration-real]
     if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.scripts == 'true'
-    uses: ./.github/workflows/python/reusable/e2e-tests.yml
+    uses: ./.github/workflows/python-e2e-tests.yml
     with:
       python-version: ${{ inputs.python-version }}
       scripts-dir: ${{ inputs.scripts-dir }}

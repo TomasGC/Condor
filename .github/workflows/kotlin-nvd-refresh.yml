@@ -1,9 +1,14 @@
 name: Kotlin / NVD Database Refresh
 
 on:
-  schedule:
-    - cron: '0 3 * * 1'  # Weekly, Monday 3 AM UTC
-  workflow_dispatch:
+  workflow_call:
+    inputs:
+      java-version:
+        type: string
+        default: '21'
+    secrets:
+      nvd-api-key:
+        required: false
 
 permissions:
   contents: read
@@ -21,7 +26,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '21'
+          java-version: ${{ inputs.java-version }}
       - uses: gradle/actions/setup-gradle@v6
         with:
           cache-read-only: false
@@ -34,7 +39,7 @@ jobs:
       - name: Update NVD database
         run: ./gradlew dependencyCheckUpdate
         env:
-          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+          NVD_API_KEY: ${{ secrets.nvd-api-key }}
       - uses: actions/cache/save@v4
         with:
           path: ~/.gradle/dependency-check-data/
