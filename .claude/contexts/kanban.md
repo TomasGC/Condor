@@ -4,16 +4,16 @@ Track of work sessions and completed tasks linked to consuming project issues.
 
 ---
 
-2026-06-21 - [otter] #44 Migrate otter CI/CD to condor and scaffold hub
+2026-06-23 - [otter] #44 Migrate otter CI/CD to condor and scaffold hub
 - Scaffolded kotlin pipeline: push-ci, cd, nvd-refresh and reusable stages (validation, lint, unit/integration/instrumented tests, build, coverage)
 - Scaffolded python pipeline: push-ci and reusable stages (detect-changes, lint, unit/integration/e2e tests, coverage)
-- Added common/pr-ci.yml orchestrator (PR title validation, context-check, security-checks)
-- Added common/reusable: check-pr-exists, pr-title-validation, context-check, context-comment, security-checks
-- Replaced free-form pre-instrumented-command with structured pre-test-command + archives-local-dir + device-archives-path
-- Updated cd.yml: any hyphen suffix = pre-release (v*-alpha, v*-rc1)
-tags: #scaffold #kotlin #python #common #ci-cd #pr-validation #security
+- Added common/pr-ci.yml orchestrator and reusable workflows (check-pr-exists, pr-title-validation, context-check, security-checks)
+- Replaced free-form pre-instrumented-command with structured pre-test-command + archives-local-dir + device-archives-path; fixed adb push to file-by-file loop
+- Converted kotlin-nvd-refresh.yml to workflow_call to fix OWASP NVD cache bootstrap from otter context
+- Updated cd.yml: hyphen suffix = pre-release; fixed PR-CI noise by adding check-pr job before condor call
+tags: #scaffold #kotlin #python #common #ci-cd #pr-validation #security #owasp #nvd #adb
 Ref: https://github.com/TomasGC/otter/issues/44
-Commit: 611c8cc
+Commits: 611c8cc, 06c2d43
 
 ---
 
