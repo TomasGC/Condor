@@ -28,6 +28,10 @@ on:
         description: "Device path where archives are pushed."
         type: string
         default: ''
+      manage-external-storage-package:
+        description: "If set, grants MANAGE_EXTERNAL_STORAGE to this package before instrumented tests run."
+        type: string
+        default: ''
       coverage-threshold:
         type: number
         default: 80
@@ -126,4 +130,5 @@ jobs:
       pre-test-command: ${{ inputs.pre-test-command }}
       archives-local-dir: ${{ inputs.archives-local-dir }}
       device-archives-path: ${{ inputs.device-archives-path }}
+      manage-external-storage-package: ${{ inputs.manage-external-storage-package }}
       retention-days: ${{ inputs.retention-days }}

@@ -25,6 +25,10 @@ on:
         description: "Device path where archives should be pushed (e.g. /sdcard/otter)."
         type: string
         default: ''
+      manage-external-storage-package:
+        description: "If set, grants the MANAGE_EXTERNAL_STORAGE app-op to this package before running tests. Needed when tests read files pushed to shared storage (e.g. /sdcard), which land media_rw-owned and are otherwise unreadable by the app under scoped storage."
+        type: string
+        default: ''
       retention-days:
         type: number
         default: 7
@@ -114,6 +118,13 @@ jobs:
           for f in ${{ inputs.archives-local-dir }}*; do
             [ -f "$f" ] && adb push "$f" ${{ inputs.device-archives-path }}/
           done
+
+      - name: Grant MANAGE_EXTERNAL_STORAGE
+        if: inputs.manage-external-storage-package != ''
+        run: |
+          ./gradlew installDebug installDebugAndroidTest
+          adb shell appops set ${{ inputs.manage-external-storage-package }} MANAGE_EXTERNAL_STORAGE allow
+          adb shell appops get ${{ inputs.manage-external-storage-package }} MANAGE_EXTERNAL_STORAGE
 
       - name: Run instrumented tests
         run: ./gradlew connectedDebugAndroidTest

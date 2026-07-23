@@ -21,7 +21,7 @@ env:
 
 jobs:
   check-pr-exists:
-    uses: ./.github/workflows/common-check-pr-exists.yml
+    uses: TomasGC/Condor/.github/workflows/common-check-pr-exists.yml@main
     secrets: inherit
     with:
       push-ci-conclusion: ${{ inputs.push-ci-conclusion }}
@@ -30,21 +30,21 @@ jobs:
   pr-validation:
     needs: check-pr-exists
     if: needs.check-pr-exists.outputs.has_pr == 'true'
-    uses: ./.github/workflows/common-pr-title-validation.yml
+    uses: TomasGC/Condor/.github/workflows/common-pr-title-validation.yml@main
     with:
       pr-title: ${{ needs.check-pr-exists.outputs.pr_title }}
 
   context-check:
     needs: check-pr-exists
     if: needs.check-pr-exists.outputs.has_pr == 'true'
-    uses: ./.github/workflows/common-context-check.yml
+    uses: TomasGC/Condor/.github/workflows/common-context-check.yml@main
     with:
       head-sha: ${{ inputs.head-sha }}
 
   context-comment:
     needs: [check-pr-exists, context-check]
     if: always() && needs.check-pr-exists.outputs.has_pr == 'true' && needs.context-check.result == 'failure'
-    uses: ./.github/workflows/common-context-comment.yml
+    uses: TomasGC/Condor/.github/workflows/common-context-comment.yml@main
     permissions:
       pull-requests: write
     with:
@@ -55,7 +55,7 @@ jobs:
   security-checks:
     needs: check-pr-exists
     if: needs.check-pr-exists.outputs.has_pr == 'true'
-    uses: ./.github/workflows/common-security-checks.yml
+    uses: TomasGC/Condor/.github/workflows/common-security-checks.yml@main
     permissions:
       contents: read
       pull-requests: write
