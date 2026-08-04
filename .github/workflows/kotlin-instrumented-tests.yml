@@ -37,10 +37,97 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  instrumented:
-    name: Instrumented Tests
+  # Runs once per cache-miss: downloads system image, creates AVD, cold-boots,
+  # saves a snapshot. Subsequent runs skip this job's heavy work via cache hits.
+  avd-setup:
+    name: AVD Setup
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: ${{ inputs.java-version }}
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-read-only: false
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Cache Android system image
+        uses: actions/cache@v4
+        id: system-image-cache
+        with:
+          path: /usr/local/lib/android/sdk/system-images/android-30/
+          key: android-system-image-api30-default-x86_64-v1
+
+      - name: Install system image
+        if: steps.system-image-cache.outputs.cache-hit != 'true'
+        run: ./gradlew pixel4api30Setup
+
+      - name: Cache AVD snapshot
+        uses: actions/cache@v4
+        id: avd-snapshot-cache
+        with:
+          path: |
+            /home/runner/.android/avd/${{ inputs.avd-name }}.avd
+            /home/runner/.android/avd/${{ inputs.avd-name }}.ini
+          key: avd-snapshot-api30-default-x86_64-${{ inputs.avd-name }}-v1
+
+      - name: Create AVD, boot and snapshot
+        if: steps.avd-snapshot-cache.outputs.cache-hit != 'true'
+        env:
+          ANDROID_AVD_HOME: /home/runner/.android/avd
+        run: |
+          mkdir -p /home/runner/.android/avd
+          echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd \
+            -n "${{ inputs.avd-name }}" \
+            -k "system-images;android-30;default;x86_64" \
+            --device "pixel_4" \
+            --force
+          AVD_DIR="/home/runner/.android/avd/${{ inputs.avd-name }}.avd"
+          sed -i '/^disk.dataPartition.size/d' "$AVD_DIR/config.ini"
+          echo "disk.dataPartition.size=8G" >> "$AVD_DIR/config.ini"
+          rm -f "$AVD_DIR/userdata-qemu.img" "$AVD_DIR/userdata.img"
+
+          export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
+          $ANDROID_HOME/emulator/emulator \
+            -avd "${{ inputs.avd-name }}" \
+            -no-snapshot-load \
+            -no-audio \
+            -no-boot-anim \
+            -gpu swiftshader_indirect \
+            -no-window \
+            -partition-size 8192 \
+            -sdcard 2048M &
+          EMULATOR_PID=$!
+          timeout 600 adb wait-for-device
+          adb shell 'until [[ "$(getprop sys.boot_completed)" == "1" ]]; do sleep 2; done'
+          sleep 10
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+          echo "Saving AVD snapshot..."
+          adb emu avd snapshot save ci_snapshot
+          sleep 5
+          kill $EMULATOR_PID || true
+          wait $EMULATOR_PID 2>/dev/null || true
+          echo "Snapshot saved"
+
+  instrumented:
+    name: Instrumented Tests (shard ${{ matrix.shard-index }})
+    needs: avd-setup
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard-index: [0, 1]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -60,10 +147,28 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Install system image
+      - name: Restore Android system image
+        uses: actions/cache@v4
+        id: system-image-restore
+        with:
+          path: /usr/local/lib/android/sdk/system-images/android-30/
+          key: android-system-image-api30-default-x86_64-v1
+
+      - name: Install system image (fallback)
+        if: steps.system-image-restore.outputs.cache-hit != 'true'
         run: ./gradlew pixel4api30Setup
 
-      - name: Create AVD
+      - name: Restore AVD snapshot
+        uses: actions/cache@v4
+        id: avd-restore
+        with:
+          path: |
+            /home/runner/.android/avd/${{ inputs.avd-name }}.avd
+            /home/runner/.android/avd/${{ inputs.avd-name }}.ini
+          key: avd-snapshot-api30-default-x86_64-${{ inputs.avd-name }}-v1
+
+      - name: Create AVD (fallback)
+        if: steps.avd-restore.outputs.cache-hit != 'true'
         env:
           ANDROID_AVD_HOME: /home/runner/.android/avd
         run: |
@@ -77,21 +182,25 @@ jobs:
           sed -i '/^disk.dataPartition.size/d' "$AVD_DIR/config.ini"
           echo "disk.dataPartition.size=8G" >> "$AVD_DIR/config.ini"
           rm -f "$AVD_DIR/userdata-qemu.img" "$AVD_DIR/userdata.img"
-          echo "AVD created: $($ANDROID_HOME/cmdline-tools/latest/bin/avdmanager list avd -c)"
 
       - name: Start emulator
-        timeout-minutes: 20
+        timeout-minutes: 10
         env:
           ANDROID_AVD_HOME: /home/runner/.android/avd
         run: |
           export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
           echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
           echo "$ANDROID_HOME/emulator" >> $GITHUB_PATH
-          AVD_NAME="${{ inputs.avd-name }}"
-          echo "Starting AVD: $AVD_NAME"
+          if [[ "${{ steps.avd-restore.outputs.cache-hit }}" == "true" ]]; then
+            SNAPSHOT_FLAG="-snapshot ci_snapshot"
+            echo "Starting from snapshot"
+          else
+            SNAPSHOT_FLAG="-no-snapshot-load"
+            echo "Starting cold boot (no snapshot)"
+          fi
           $ANDROID_HOME/emulator/emulator \
-            -avd "$AVD_NAME" \
-            -no-snapshot-load \
+            -avd "${{ inputs.avd-name }}" \
+            $SNAPSHOT_FLAG \
             -no-audio \
             -no-boot-anim \
             -gpu swiftshader_indirect \
@@ -99,7 +208,7 @@ jobs:
             -partition-size 8192 \
             -sdcard 2048M &
           echo "Waiting for emulator boot..."
-          timeout 600 adb wait-for-device
+          timeout 300 adb wait-for-device
           adb shell 'until [[ "$(getprop sys.boot_completed)" == "1" ]]; do sleep 2; done'
           sleep 5
           echo "Emulator ready"
@@ -126,19 +235,22 @@ jobs:
           adb shell appops set ${{ inputs.manage-external-storage-package }} MANAGE_EXTERNAL_STORAGE allow
           adb shell appops get ${{ inputs.manage-external-storage-package }} MANAGE_EXTERNAL_STORAGE
 
-      - name: Run instrumented tests
-        run: ./gradlew connectedDebugAndroidTest
+      - name: Run instrumented tests (shard ${{ matrix.shard-index }})
+        run: |
+          ./gradlew connectedDebugAndroidTest \
+            -Pandroid.testInstrumentationRunnerArguments.numShards=2 \
+            "-Pandroid.testInstrumentationRunnerArguments.shardIndex=${{ matrix.shard-index }}"
 
       - if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: instrumented-test-results
+          name: instrumented-test-results-shard-${{ matrix.shard-index }}
           path: app/build/reports/androidTests/connected/
           retention-days: ${{ inputs.retention-days }}
 
       - if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: instrumented-coverage
+          name: instrumented-coverage-shard-${{ matrix.shard-index }}
           path: app/build/outputs/code_coverage/
           retention-days: ${{ inputs.retention-days }}
