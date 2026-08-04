@@ -1,7 +1,7 @@
 # Architecture - Condor
 
 **Purpose**: Workflow structure, design decisions, and cross-repo usage patterns
-**Last Updated**: 2026-06-21
+**Last Updated**: 2026-08-04
 
 ---
 
@@ -30,7 +30,7 @@
 │       ├── integration-real.yml           # Integration tests against real archives
 │       ├── build-apk.yml                  # Debug APK build + size check
 │       ├── coverage.yml                   # Kover coverage report + threshold enforcement
-│       └── instrumented-tests.yml         # Android emulator tests + archive push
+│       └── instrumented-tests.yml         # Android emulator tests: avd-setup (caches system image + AVD snapshot) + instrumented matrix (2 shards via numShards/shardIndex)
 └── python/
     ├── push-ci.yml                        # Orchestrator: full Python pipeline
     └── reusable/
@@ -93,7 +93,30 @@ inputs:
     required: true
 ```
 
-### 5. Pre-Release Detection
+### 5. Instrumented Test Optimization (AVD Caching + Sharding)
+
+`kotlin-instrumented-tests.yml` uses two jobs to minimize emulator setup cost:
+
+```
+avd-setup (runs once)
+    ├── Cache system image  → key: android-system-image-api30-default-x86_64-v1
+    ├── Install image (cache miss only)
+    ├── Cache AVD snapshot  → key: avd-snapshot-api30-default-x86_64-{avd-name}-v1
+    └── Create AVD + cold boot + snapshot save (cache miss only)
+
+instrumented (matrix: shard-index [0, 1])
+    ├── Restore system image cache
+    ├── Install image (fallback on miss)
+    ├── Restore AVD snapshot cache
+    ├── Create AVD (fallback on miss)
+    ├── Start emulator: -snapshot ci_snapshot (hit) or -no-snapshot-load (miss)
+    └── ./gradlew connectedDebugAndroidTest -PnumShards=2 -PshardIndex={shard}
+```
+
+**Savings vs baseline** (cache hit + both shards parallel): ~11min (~2min system image + ~4min cold boot + ~5min half-suite).
+Both fallback paths (cache miss) produce a correct but slower run — no breaking change.
+
+### 6. Pre-Release Detection
 
 `cd.yml` uses hyphen-suffix convention — no hardcoded suffixes:
 

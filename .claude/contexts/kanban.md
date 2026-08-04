@@ -4,6 +4,18 @@ Track of work sessions and completed tasks linked to consuming project issues.
 
 ---
 
+2026-08-04 - [otter] #38 Enable Test Parallelization
+- Split instrumented job into avd-setup (caches system image + AVD snapshot) + instrumented matrix (2 parallel shards)
+- Cache Android system image API 30 across runs (~2min saved on hit)
+- Cache AVD snapshot so subsequent runs boot from snapshot instead of cold boot (~4min saved)
+- 2-shard parallel test execution via numShards/shardIndex runner args (~5min saved)
+- Graceful fallback to cold boot + fresh AVD on any cache miss — no breaking change
+tags: #instrumented-tests #emulator #caching #sharding #performance
+Ref: https://github.com/TomasGC/otter/issues/38
+Commit: 39f85e2
+
+---
+
 2026-06-23 - [otter] #44 Migrate otter CI/CD to condor and scaffold hub
 - Scaffolded kotlin pipeline: push-ci, cd, nvd-refresh and reusable stages (validation, lint, unit/integration/instrumented tests, build, coverage)
 - Scaffolded python pipeline: push-ci and reusable stages (detect-changes, lint, unit/integration/e2e tests, coverage)
