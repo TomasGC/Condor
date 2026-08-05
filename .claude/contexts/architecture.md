@@ -1,7 +1,7 @@
 # Architecture - Condor
 
 **Purpose**: Workflow structure, design decisions, and cross-repo usage patterns
-**Last Updated**: 2026-06-21
+**Last Updated**: 2026-08-04
 
 ---
 
@@ -30,7 +30,7 @@
 │       ├── integration-real.yml           # Integration tests against real archives
 │       ├── build-apk.yml                  # Debug APK build + size check
 │       ├── coverage.yml                   # Kover coverage report + threshold enforcement
-│       └── instrumented-tests.yml         # Android emulator tests + archive push
+│       └── instrumented-tests.yml         # Android emulator tests: self-contained matrix (2 shards, each cold boots its own emulator + runs half-suite)
 └── python/
     ├── push-ci.yml                        # Orchestrator: full Python pipeline
     └── reusable/
@@ -93,7 +93,26 @@ inputs:
     required: true
 ```
 
-### 5. Pre-Release Detection
+### 5. Instrumented Test Optimization (Self-Contained Shards)
+
+`kotlin-instrumented-tests.yml` uses a single self-contained matrix job (no separate avd-setup):
+
+```
+instrumented (matrix: shard-index [0, 1]) — each shard runs on its own runner
+    ├── Cache system image  → key: android-system-image-api30-default-x86_64-v1
+    ├── Install system image via ./gradlew pixel4api30Setup (cache miss only)
+    ├── Cache Android emulator → key: android-emulator-v1
+    ├── Install emulator via sdkmanager (cache miss only)
+    │     Note: pixel4api30Setup installs system image only, not the emulator binary
+    ├── Create AVD + cold boot (-no-snapshot-load -no-snapshot-save)
+    └── ./gradlew connectedDebugAndroidTest -PnumShards=2 -PshardIndex={shard}
+```
+
+**Why no AVD snapshot cache**: AVD snapshots encode QEMU machine state (CPU, memory layout). GitHub Actions runners are ephemeral VMs with non-deterministic hardware — restoring a snapshot on a different hypervisor/CPU configuration causes emulator boot failure (`adb wait-for-device` timeout 124). Removed; cold boot is reliable and fits in the 60-min job timeout.
+
+**Savings vs baseline** (system image + emulator cache hit, both shards parallel): ~11min saved (~2min system image + ~4min cold boot × 2 shards + ~5min per half-suite).
+
+### 6. Pre-Release Detection
 
 `cd.yml` uses hyphen-suffix convention — no hardcoded suffixes:
 

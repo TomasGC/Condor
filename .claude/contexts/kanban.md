@@ -4,6 +4,18 @@ Track of work sessions and completed tasks linked to consuming project issues.
 
 ---
 
+2026-08-05 - [otter] #38 Enable Test Parallelization
+- Removed avd-setup job: AVD snapshots unreliable across ephemeral runners (different hardware/hypervisor → QEMU state invalid)
+- Each shard is now self-contained: install emulator + create AVD + cold boot + run tests on same runner
+- Cache system image (reliable cross-runner, just files) but no AVD snapshot cache
+- Added explicit sdkmanager --install "emulator" step (pixel4api30Setup only installs system image, not emulator binary)
+- 2-shard parallel test execution via numShards/shardIndex; emulator timeout 600s per shard
+tags: #instrumented-tests #emulator #caching #sharding #performance
+Ref: https://github.com/TomasGC/otter/issues/38
+Commit: bb57e3d
+
+---
+
 2026-06-23 - [otter] #44 Migrate otter CI/CD to condor and scaffold hub
 - Scaffolded kotlin pipeline: push-ci, cd, nvd-refresh and reusable stages (validation, lint, unit/integration/instrumented tests, build, coverage)
 - Scaffolded python pipeline: push-ci and reusable stages (detect-changes, lint, unit/integration/e2e tests, coverage)
