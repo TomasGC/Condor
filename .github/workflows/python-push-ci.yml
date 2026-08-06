@@ -33,7 +33,7 @@ jobs:
 
   unit-tests:
     needs: detect-changes
-    if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.scripts == 'true'
+    if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.scripts == 'true')
     uses: ./.github/workflows/python-unit-tests.yml
     with:
       python-version: ${{ inputs.python-version }}
@@ -41,7 +41,7 @@ jobs:
 
   lint-checks:
     needs: detect-changes
-    if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.scripts == 'true'
+    if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.scripts == 'true')
     uses: ./.github/workflows/python-lint-checks.yml
     with:
       python-version: ${{ inputs.python-version }}
@@ -50,7 +50,7 @@ jobs:
 
   integration-mock:
     needs: [detect-changes, unit-tests]
-    if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.scripts == 'true'
+    if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.scripts == 'true')
     uses: ./.github/workflows/python-integration-mock.yml
     with:
       python-version: ${{ inputs.python-version }}
@@ -58,7 +58,7 @@ jobs:
 
   integration-real:
     needs: [detect-changes, integration-mock]
-    if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.scripts == 'true'
+    if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.scripts == 'true')
     uses: ./.github/workflows/python-integration-real.yml
     with:
       python-version: ${{ inputs.python-version }}
@@ -66,7 +66,7 @@ jobs:
 
   coverage:
     needs: [detect-changes, integration-real]
-    if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.scripts == 'true'
+    if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.scripts == 'true')
     uses: ./.github/workflows/python-coverage.yml
     with:
       python-version: ${{ inputs.python-version }}
@@ -75,7 +75,7 @@ jobs:
 
   e2e:
     needs: [detect-changes, integration-real]
-    if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.scripts == 'true'
+    if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.scripts == 'true')
     uses: ./.github/workflows/python-e2e-tests.yml
     with:
       python-version: ${{ inputs.python-version }}

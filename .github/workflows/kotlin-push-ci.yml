@@ -56,12 +56,12 @@ jobs:
 
   validation:
     needs: detect-changes
-    if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true'
+    if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true')
     uses: ./.github/workflows/kotlin-validation.yml
 
   lint-checks:
     needs: detect-changes
-    if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true'
+    if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true')
     uses: ./.github/workflows/kotlin-lint-checks.yml
     secrets: inherit
     with:
@@ -69,7 +69,7 @@ jobs:
 
   unit-tests:
     needs: detect-changes
-    if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true'
+    if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true')
     uses: ./.github/workflows/kotlin-unit-tests.yml
     with:
       java-version: ${{ inputs.java-version }}
@@ -79,7 +79,7 @@ jobs:
 
   integration-mock:
     needs: [detect-changes, unit-tests]
-    if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true'
+    if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true')
     uses: ./.github/workflows/kotlin-integration-mock.yml
     with:
       java-version: ${{ inputs.java-version }}
@@ -89,7 +89,7 @@ jobs:
 
   integration-real:
     needs: [detect-changes, integration-mock]
-    if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true'
+    if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true')
     uses: ./.github/workflows/kotlin-integration-real.yml
     with:
       java-version: ${{ inputs.java-version }}
@@ -99,7 +99,7 @@ jobs:
 
   build-apk:
     needs: [detect-changes, integration-real]
-    if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true'
+    if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true')
     uses: ./.github/workflows/kotlin-build-apk.yml
     with:
       java-version: ${{ inputs.java-version }}
@@ -108,7 +108,7 @@ jobs:
 
   coverage:
     needs: [detect-changes, integration-real]
-    if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true'
+    if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true')
     uses: ./.github/workflows/kotlin-coverage.yml
     secrets: inherit
     with:
@@ -121,7 +121,7 @@ jobs:
 
   instrumented-tests:
     needs: [detect-changes, build-apk]
-    if: inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true'
+    if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true')
     uses: ./.github/workflows/kotlin-instrumented-tests.yml
     with:
       java-version: ${{ inputs.java-version }}

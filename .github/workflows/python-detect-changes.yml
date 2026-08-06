@@ -11,6 +11,9 @@ on:
       scripts:
         description: "Whether Python scripts changed"
         value: ${{ jobs.detect.outputs.scripts }}
+      docs-only:
+        description: "Whether only markdown files changed in the push"
+        value: ${{ jobs.detect.outputs.docs-only }}
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -21,8 +24,14 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       scripts: ${{ steps.filter.outputs.scripts }}
+      docs-only: ${{ steps.docs-check.outputs.result }}
     steps:
       - uses: actions/checkout@v4
+      - uses: TomasGC/Condor/.github/actions/check-docs-only@main
+        id: docs-check
+        with:
+          before: ${{ github.event.before }}
+          after: ${{ github.event.after }}
       - uses: dorny/paths-filter@v3
         id: filter
         with:

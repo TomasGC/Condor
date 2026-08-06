@@ -1,0 +1,52 @@
+name: Check Docs Only
+description: Detect if all files changed in the push are markdown (.md) files only
+inputs:
+  before:
+    description: 'SHA before the push (github.event.before)'
+    required: true
+  after:
+    description: 'SHA after the push (github.event.after)'
+    required: true
+outputs:
+  result:
+    description: "'true' if all changed files are .md, 'false' otherwise"
+    value: ${{ steps.check.outputs.result }}
+runs:
+  using: composite
+  steps:
+    - name: Fetch before SHA
+      if: inputs.before != '' && inputs.before != '0000000000000000000000000000000000000000'
+      shell: bash
+      run: git fetch --depth=1 origin ${{ inputs.before }}
+    - name: Check docs-only
+      id: check
+      shell: bash
+      env:
+        BEFORE: ${{ inputs.before }}
+        AFTER: ${{ inputs.after }}
+      run: |
+        python3 - <<'EOF'
+        import os, subprocess, sys
+        before = os.environ.get('BEFORE', '')
+        after = os.environ.get('AFTER', '')
+        output_file = os.environ.get('GITHUB_OUTPUT', '')
+
+        def write_result(value):
+            if output_file:
+                with open(output_file, 'a') as f:
+                    f.write(f'result={value}\n')
+
+        if not before or before == '0' * 40:
+            write_result('false')
+            sys.exit(0)
+
+        try:
+            proc = subprocess.run(
+                ['git', 'diff', '--name-only', before, after],
+                capture_output=True, text=True, check=True
+            )
+            files = [f for f in proc.stdout.strip().splitlines() if f]
+            write_result('true' if (bool(files) and all(f.endswith('.md') for f in files)) else 'false')
+        except subprocess.CalledProcessError:
+            write_result('false')
+        EOF
