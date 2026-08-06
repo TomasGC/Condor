@@ -1,46 +1,44 @@
 # Architecture - Condor
 
 **Purpose**: Workflow structure, design decisions, and cross-repo usage patterns
-**Last Updated**: 2026-08-04
+**Last Updated**: 2026-08-06
 
 ---
 
 ## Repository Structure
 
 ```
-.github/workflows/
-├── common/
-│   ├── pr-ci.yml                          # Orchestrator: full PR validation pipeline
-│   └── reusable/
-│       ├── check-pr-exists.yml            # Find open PR for a branch + extract title/number
-│       ├── pr-title-validation.yml        # Validate #123: type: description format
-│       ├── context-check.yml              # Verify .claude/contexts/ updated with code changes
-│       ├── context-comment.yml            # Post PR comment for missing context files
-│       └── security-checks.yml            # OWASP dependency scan + TruffleHog + APK size
-├── kotlin/
-│   ├── push-ci.yml                        # Orchestrator: full Kotlin pipeline
-│   ├── cd.yml                             # Orchestrator: release pipeline
-│   ├── nvd-refresh.yml                    # Scheduled NVD database refresh (OWASP)
-│   └── reusable/
-│       ├── detect-changes.yml             # Detect Kotlin/Gradle file changes
-│       ├── validation.yml                 # Branch name, commit format, TODO, large files
-│       ├── lint-checks.yml                # Android lint, ktlint, detekt, OWASP, TruffleHog
-│       ├── unit-tests.yml                 # JVM unit + integration-mock + integration-real
-│       ├── integration-mock.yml           # Integration tests with mocked subprocess
-│       ├── integration-real.yml           # Integration tests against real archives
-│       ├── build-apk.yml                  # Debug APK build + size check
-│       ├── coverage.yml                   # Kover coverage report + threshold enforcement
-│       └── instrumented-tests.yml         # Android emulator tests: self-contained matrix (2 shards, each cold boots its own emulator + runs half-suite)
-└── python/
-    ├── push-ci.yml                        # Orchestrator: full Python pipeline
-    └── reusable/
-        ├── detect-changes.yml             # Detect Python file changes
-        ├── lint-checks.yml                # flake8, black, isort
-        ├── unit-tests.yml                 # pytest unit tests
-        ├── integration-mock.yml           # Integration tests with FakeSubprocessRunner
-        ├── integration-real.yml           # Integration tests with real tools
-        ├── coverage.yml                   # pytest coverage + threshold enforcement
-        └── e2e-tests.yml                  # End-to-end tests
+.github/
+├── actions/
+│   └── check-docs-only/
+│       └── action.yml                     # Composite: detect if push contains only .md changes
+└── workflows/
+    ├── common-check-pr-exists.yml         # Find open PR for a branch + extract title/number
+    ├── common-context-check.yml           # Verify .claude/contexts/ updated with code changes
+    ├── common-context-comment.yml         # Post PR comment if context files missing
+    ├── common-pr-ci.yml                   # Orchestrator: full PR validation pipeline
+    ├── common-pr-title-validation.yml     # Validate #123: type: description format
+    ├── common-security-checks.yml         # OWASP dependency scan + TruffleHog + APK size
+    ├── kotlin-build-apk.yml               # Debug APK build + size check
+    ├── kotlin-cd.yml                      # Orchestrator: release pipeline
+    ├── kotlin-coverage.yml                # Kover coverage report + threshold enforcement
+    ├── kotlin-detect-changes.yml          # Detect Kotlin/Gradle file changes + docs-only check
+    ├── kotlin-instrumented-tests.yml      # Android emulator tests: self-contained matrix (2 shards)
+    ├── kotlin-integration-mock.yml        # Integration tests with mocked subprocess
+    ├── kotlin-integration-real.yml        # Integration tests against real archives
+    ├── kotlin-lint-checks.yml             # Android lint, ktlint, detekt, OWASP, TruffleHog
+    ├── kotlin-nvd-refresh.yml             # Scheduled NVD database refresh (OWASP)
+    ├── kotlin-push-ci.yml                 # Orchestrator: full Kotlin pipeline
+    ├── kotlin-unit-tests.yml              # JVM unit + integration-mock + integration-real
+    ├── kotlin-validation.yml              # Branch name, commit format, TODO, large files
+    ├── python-coverage.yml                # pytest coverage + threshold enforcement
+    ├── python-detect-changes.yml          # Detect Python file changes + docs-only check
+    ├── python-e2e-tests.yml               # End-to-end tests
+    ├── python-integration-mock.yml        # Integration tests with FakeSubprocessRunner
+    ├── python-integration-real.yml        # Integration tests with real tools
+    ├── python-lint-checks.yml             # flake8, black, isort
+    ├── python-push-ci.yml                 # Orchestrator: full Python pipeline
+    └── python-unit-tests.yml              # pytest unit tests
 ```
 
 ---
@@ -112,7 +110,38 @@ instrumented (matrix: shard-index [0, 1]) — each shard runs on its own runner
 
 **Savings vs baseline** (system image + emulator cache hit, both shards parallel): ~11min saved (~2min system image + ~4min cold boot × 2 shards + ~5min per half-suite).
 
-### 6. Pre-Release Detection
+### 6. Docs-Only Push Detection
+
+Both `kotlin-detect-changes.yml` and `python-detect-changes.yml` output a `docs-only` flag. When true, all downstream jobs are skipped.
+
+**Why not `paths-ignore` in caller repos**: that only applies to the top-level trigger, not reusable workflow jobs individually.
+
+**Why not `dorny/paths-filter`**: in nested `workflow_call` context, dorny has no push event range — it falls back to branch-vs-main comparison, which is always true on feature branches.
+
+**Solution**: composite action `.github/actions/check-docs-only` runs `git diff --name-only $BEFORE $AFTER` using `github.event.before`/`after` push SHAs. Outputs `true` only if every changed file ends with `.md`.
+
+```yaml
+# kotlin-detect-changes.yml / python-detect-changes.yml
+- uses: actions/checkout@v4
+- uses: TomasGC/Condor/.github/actions/check-docs-only@main
+  id: docs-check
+  with:
+    before: ${{ github.event.before }}
+    after: ${{ github.event.after }}
+
+# kotlin-push-ci.yml / python-push-ci.yml — each downstream job:
+if: needs.detect-changes.outputs.docs-only != 'true' && ...
+```
+
+**Edge cases handled**:
+- Initial push (before SHA = `0000...`): `docs-only=false` (run pipeline)
+- Empty diff: `docs-only=false` (run pipeline)
+- All `.md`: `docs-only=true` (skip pipeline)
+- Mixed `.md` + code: `docs-only=false` (run pipeline)
+
+---
+
+### 7. Pre-Release Detection
 
 `cd.yml` uses hyphen-suffix convention — no hardcoded suffixes:
 

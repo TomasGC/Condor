@@ -4,6 +4,16 @@ Track of work sessions and completed tasks linked to consuming project issues.
 
 ---
 
+2026-08-06 - [otter] #36 File Type Icons and Folder Content Counts
+- Added docs-only pipeline skip: push with only .md changes skips all kotlin and python pipeline jobs
+- Extracted docs-only detection into shared composite action (.github/actions/check-docs-only/action.yml); called by kotlin-detect-changes and python-detect-changes via push SHA diff (git diff --name-only before..after)
+- Replaced dorny/paths-filter non-docs approach (broken in nested workflow_call context — falls back to branch-vs-main comparison) with shell-based approach using github.event.before/after
+tags: #ci-cd #docs-only #composite-action
+Ref: https://github.com/TomasGC/otter/issues/36
+Commit: c1c367e
+
+---
+
 2026-08-05 - [otter] #38 Enable Test Parallelization
 - Removed avd-setup job: AVD snapshots unreliable across ephemeral runners (different hardware/hypervisor → QEMU state invalid)
 - Each shard is now self-contained: install emulator + create AVD + cold boot + run tests on same runner
