@@ -26,4 +26,4 @@ jobs:
         with:
           python-version: ${{ inputs.python-version }}
       - run: pip install -r requirements-test.txt
-      - run: python -m pytest tests/integration_real/ --no-cov -q
+      - run: python -m pytest tests/integration_real/ -m "not local_only" --no-cov -q
