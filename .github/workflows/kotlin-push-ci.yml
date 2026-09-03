@@ -45,6 +45,14 @@ on:
       retention-days:
         type: number
         default: 7
+      unit-job:
+        description: "Run kotlin-unit-tests.yml as a single generic 'unit' job instead of its domain-service/data/ui three-way split. For projects too small to warrant that split."
+        type: boolean
+        default: false
+      mock-job:
+        description: "Run kotlin-integration-mock.yml as a single generic 'mock' job instead of its extractors/service-viewmodel two-way split. For projects too small to warrant that split."
+        type: boolean
+        default: false
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -76,6 +84,7 @@ jobs:
       python-version: ${{ inputs.python-version }}
       pre-test-command: ${{ inputs.pre-test-command }}
       retention-days: ${{ inputs.retention-days }}
+      unit-job: ${{ inputs.unit-job }}
 
   integration-mock:
     needs: [detect-changes, unit-tests]
@@ -86,6 +95,7 @@ jobs:
       python-version: ${{ inputs.python-version }}
       pre-test-command: ${{ inputs.pre-test-command }}
       retention-days: ${{ inputs.retention-days }}
+      mock-job: ${{ inputs.mock-job }}
 
   integration-real:
     needs: [detect-changes, integration-mock]
