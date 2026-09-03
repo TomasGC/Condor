@@ -40,7 +40,13 @@ jobs:
       - name: Pre-test setup
         if: inputs.pre-test-command != ''
         run: ${{ inputs.pre-test-command }}
-      - run: ./gradlew testDebugUnitTest -DtestType=integration-real
+      - name: Run real integration tests
+        run: |
+          if find app/src/test -iname '*RealIntegrationTest.kt' | grep -q .; then
+            ./gradlew testDebugUnitTest -DtestType=integration-real
+          else
+            echo "No *RealIntegrationTest.kt classes yet — skipping"
+          fi
       - if: always()
         uses: actions/upload-artifact@v4
         with:

@@ -26,7 +26,13 @@ jobs:
         with:
           python-version: ${{ inputs.python-version }}
       - run: pip install -r requirements-test.txt
-      - run: python -m pytest tests/integration_mock/cli/ --no-cov -q
+      - name: Run CLI mock tests
+        run: |
+          if [ -d tests/integration_mock/cli ]; then
+            python -m pytest tests/integration_mock/cli/ --no-cov -q
+          else
+            echo "No tests/integration_mock/cli/ for this project — skipping"
+          fi
 
   android:
     name: Integration Tests / Mock / Android
@@ -40,4 +46,10 @@ jobs:
         with:
           python-version: ${{ inputs.python-version }}
       - run: pip install -r requirements-test.txt
-      - run: python -m pytest tests/integration_mock/android/ --no-cov -q
+      - name: Run Android mock tests
+        run: |
+          if [ -d tests/integration_mock/android ]; then
+            python -m pytest tests/integration_mock/android/ --no-cov -q
+          else
+            echo "No tests/integration_mock/android/ for this project — skipping"
+          fi
