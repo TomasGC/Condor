@@ -8,9 +8,9 @@ inputs:
     default: '21'
 
 outputs:
-  jvm-matrix:
-    description: 'JSON array of objects with a task key holding the Gradle task path, for every JVM and unit test task with test sources'
-    value: ${{ steps.discover.outputs.jvm-matrix }}
+  matrix:
+    description: 'JSON strategy matrix {"include": [{"task": <Gradle task path>}, ...]} for every JVM and unit test task with test sources'
+    value: ${{ steps.discover.outputs.matrix }}
   instrumented-task:
     description: "Gradle task path of the connected instrumented task that has test sources; empty when there is none"
     value: ${{ steps.discover.outputs.instrumented-task }}
@@ -43,6 +43,6 @@ runs:
                 instrumented = path
             else:
                 jvm.append({"task": path})
-        print(f"jvm-matrix={json.dumps(jvm)}")
+        print(f"matrix={json.dumps({'include': jvm})}")
         print(f"instrumented-task={instrumented}")
         EOF
