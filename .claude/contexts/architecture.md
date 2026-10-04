@@ -10,8 +10,11 @@
 ```
 .github/
 ├── actions/
-│   └── check-docs-only/
-│       └── action.yml                     # Composite: detect if push contains only .md changes
+│   ├── check-docs-only/
+│   │   └── action.yml                     # Composite: detect if push contains only .md changes
+│   └── discover-test-tiers/
+│       ├── action.yml                     # Composite: JVM test task matrix + instrumented task path
+│       └── discover.gradle                # Read-only init script: test tasks and test source counts
 └── workflows/
     ├── common-check-pr-exists.yml         # Find open PR for a branch + extract title/number
     ├── common-context-check.yml           # Verify .claude/contexts/ updated with code changes
@@ -100,7 +103,7 @@ instrumented (matrix: shard-index [0, 1]) — each shard runs on its own runner
     ├── Install emulator via sdkmanager (cache miss only)
     │     Note: pixel4api30Setup installs system image only, not the emulator binary
     ├── Create AVD + cold boot (-no-snapshot-load -no-snapshot-save)
-    └── ./gradlew connectedDebugAndroidTest -PnumShards=2 -PshardIndex={shard}
+    └── ./gradlew <test-task> -PnumShards=2 -PshardIndex={shard}   # test-task: discovered instrumented task
 ```
 
 **Why no AVD snapshot cache**: AVD snapshots encode QEMU machine state (CPU, memory layout). GitHub Actions runners are ephemeral VMs with non-deterministic hardware — restoring a snapshot on a different hypervisor/CPU configuration causes emulator boot failure (`adb wait-for-device` timeout 124). Removed; cold boot is reliable and fits in the 60-min job timeout.
@@ -151,6 +154,22 @@ VERSION=${TAG#v}
 
 ---
 
+### 8. JVM Test Discovery
+
+`discover-test-tiers` runs a read-only Gradle init script (`discover.gradle`) and prints one line per test task of every project: `TASK|<project>|<task>|<jvm|instrumented>|<test source files>`. Nothing is compiled. A test source file is a `.kt` or `.java` whose name ends in `Test` or `Tests`.
+
+Rules:
+- A JVM test task becomes a matrix job only when it has test sources. The source set is the tier: no name filter, no `-DtestType`.
+- Release and managed-device tasks are not discovered.
+- More than one connected task with test sources fails the run. One task sets `instrumented-task`, which gates `instrumented-tests`.
+- The action reads the calling repository's Gradle project, so the caller checks out first. Consumers reference it as `TomasGC/Condor/.github/actions/discover-test-tiers@<ref>`.
+
+Why: a fixed job list ran the whole suite in every tier job when the filter was missing, and started an emulator for tiers with no tests.
+
+Known limit: a file is counted by name, not by `@Test` methods. A `*Test.kt` file with no tests still creates a job.
+
+---
+
 ## PR Validation Pipeline
 
 ```
@@ -181,11 +200,10 @@ detect-changes
     ├── validation (branch, commit, TODO, large files)
     ├── lint-checks (android lint, ktlint, detekt, OWASP, TruffleHog)
     │
-    ├── unit-tests
-    │       └── integration-mock
-    │               └── integration-real
-    │                       ├── build-apk ──→ instrumented-tests
-    │                       └── coverage
+    ├── discover-tests (JVM test tasks with test sources, instrumented task path)
+    │       └── jvm-tests (one job per discovered JVM task)
+    │               ├── build-apk ──→ instrumented-tests (only when an instrumented task was discovered)
+    │               └── coverage
     └── (all blocked by detect-changes gate if skip-on-no-changes=true)
 ```
 

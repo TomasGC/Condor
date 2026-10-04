@@ -94,9 +94,7 @@ jobs:
 | `kotlin/nvd-refresh.yml` | Scheduled NVD database refresh for OWASP dependency checks |
 | `kotlin/reusable/validation.yml` | Branch name, commit format, TODO check, large files |
 | `kotlin/reusable/lint-checks.yml` | Android lint, ktlint, detekt, OWASP, TruffleHog |
-| `kotlin/reusable/unit-tests.yml` | JVM unit + integration tests |
-| `kotlin/reusable/integration-mock.yml` | Integration tests with mocked subprocess |
-| `kotlin/reusable/integration-real.yml` | Integration tests against real archives |
+| `kotlin/push-ci.yml` (inline jobs `discover-tests`, `jvm-tests`) | One job per Gradle test task that has test sources; no `unit-job`/`mock-job` inputs |
 | `kotlin/reusable/build-apk.yml` | Debug APK build + size check |
 | `kotlin/reusable/coverage.yml` | Kover coverage report + threshold enforcement |
 | `kotlin/reusable/instrumented-tests.yml` | Android emulator tests + archive push |

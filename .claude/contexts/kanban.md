@@ -4,6 +4,16 @@ Track of work sessions and completed tasks linked to consuming project issues.
 
 ---
 
+2026-10-04 - [anglerfish] #53 Discover JVM test tiers from Gradle source sets
+- `discover-test-tiers` composite action (read-only Gradle init script) lists test tasks with their test source counts; the Kotlin push pipeline creates one JVM job per task that has tests, and the instrumented job only when a connected task has tests
+- Removed the `unit-job` / `mock-job` inputs and the unit, integration-mock and integration-real workflows; the `-DtestType` filter path is gone
+- Verified by discovery against Anglerfish only; Raven's and Otter's job lists change on their next run, Raven's caller must drop `unit-job`/`mock-job` (PR #2 open)
+tags: #ci-cd #discovery #test-tiers
+Ref: https://github.com/TomasGC/Anglerfish/issues/53
+Commit: a3832d9
+
+---
+
 2026-08-06 - [otter] #36 File Type Icons and Folder Content Counts
 - Added docs-only pipeline skip: push with only .md changes skips all kotlin and python pipeline jobs
 - Extracted docs-only detection into shared composite action (.github/actions/check-docs-only/action.yml); called by kotlin-detect-changes and python-detect-changes via push SHA diff (git diff --name-only before..after)
