@@ -84,7 +84,7 @@ jobs:
   jvm-tests:
     name: Tests / ${{ matrix.task }}
     needs: [detect-changes, discover-tests]
-    if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true') && needs.discover-tests.outputs.matrix != '{"include":[]}'
+    if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true') && needs.discover-tests.outputs.matrix != '{"include": []}'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
