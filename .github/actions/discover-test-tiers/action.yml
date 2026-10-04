@@ -43,6 +43,6 @@ runs:
                 instrumented = path
             else:
                 jvm.append({"task": path})
-        print(f"matrix={json.dumps({'include': jvm}, separators=(',', ':'))}")
+        print(f"matrix={json.dumps({'include': jvm})}")
         print(f"instrumented-task={instrumented}")
         EOF
