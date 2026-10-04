@@ -9,10 +9,6 @@ on:
       python-version:
         type: string
         default: '3.12'
-      test-task:
-        description: "Gradle task that runs the instrumented tests, e.g. :app-instrumented:connectedDebugAndroidTest"
-        type: string
-        default: 'connectedDebugAndroidTest'
       avd-name:
         description: "Android Virtual Device name to create and run tests on"
         type: string
@@ -151,7 +147,7 @@ jobs:
 
       - name: Run instrumented tests (shard ${{ matrix.shard-index }})
         run: |
-          ./gradlew ${{ inputs.test-task }} \
+          ./gradlew connectedDebugAndroidTest \
             -Pandroid.testInstrumentationRunnerArguments.numShards=2 \
             "-Pandroid.testInstrumentationRunnerArguments.shardIndex=${{ matrix.shard-index }}"
 
@@ -159,12 +155,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: instrumented-test-results-shard-${{ matrix.shard-index }}
-          path: '**/build/reports/androidTests/connected/'
+          path: app/build/reports/androidTests/connected/
           retention-days: ${{ inputs.retention-days }}
 
       - if: always()
         uses: actions/upload-artifact@v4
         with:
           name: instrumented-coverage-shard-${{ matrix.shard-index }}
-          path: '**/build/outputs/code_coverage/'
+          path: app/build/outputs/code_coverage/
           retention-days: ${{ inputs.retention-days }}
