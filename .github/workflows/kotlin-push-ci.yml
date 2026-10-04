@@ -77,7 +77,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - id: tiers
-        uses: TomasGC/Condor/.github/actions/discover-test-tiers@main
+        uses: TomasGC/Condor/.github/actions/discover-test-tiers@feature/anglerfish-#53-discover-test-tiers
         with:
           java-version: ${{ inputs.java-version }}
 
