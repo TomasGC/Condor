@@ -24,12 +24,9 @@
     ├── kotlin-coverage.yml                # Kover coverage report + threshold enforcement
     ├── kotlin-detect-changes.yml          # Detect Kotlin/Gradle file changes + docs-only check
     ├── kotlin-instrumented-tests.yml      # Android emulator tests: self-contained matrix (2 shards)
-    ├── kotlin-integration-mock.yml        # Integration tests with mocked subprocess
-    ├── kotlin-integration-real.yml        # Integration tests against real archives
     ├── kotlin-lint-checks.yml             # Android lint, ktlint, detekt, OWASP, TruffleHog
     ├── kotlin-nvd-refresh.yml             # Scheduled NVD database refresh (OWASP)
     ├── kotlin-push-ci.yml                 # Orchestrator: full Kotlin pipeline
-    ├── kotlin-unit-tests.yml              # JVM unit + integration-mock + integration-real
     ├── kotlin-validation.yml              # Branch name, commit format, TODO, large files
     ├── python-coverage.yml                # pytest coverage + threshold enforcement
     ├── python-detect-changes.yml          # Detect Python file changes + docs-only check

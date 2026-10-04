@@ -45,14 +45,6 @@ on:
       retention-days:
         type: number
         default: 7
-      unit-job:
-        description: "Run kotlin-unit-tests.yml as a single generic 'unit' job instead of its domain-service/data/ui three-way split. For projects too small to warrant that split."
-        type: boolean
-        default: false
-      mock-job:
-        description: "Run kotlin-integration-mock.yml as a single generic 'mock' job instead of its extractors/service-viewmodel two-way split. For projects too small to warrant that split."
-        type: boolean
-        default: false
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -75,40 +67,62 @@ jobs:
     with:
       java-version: ${{ inputs.java-version }}
 
-  unit-tests:
+  discover-tests:
     needs: detect-changes
     if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true')
-    uses: ./.github/workflows/kotlin-unit-tests.yml
-    with:
-      java-version: ${{ inputs.java-version }}
-      python-version: ${{ inputs.python-version }}
-      pre-test-command: ${{ inputs.pre-test-command }}
-      retention-days: ${{ inputs.retention-days }}
-      unit-job: ${{ inputs.unit-job }}
+    runs-on: ubuntu-latest
+    outputs:
+      jvm-matrix: ${{ steps.tiers.outputs.jvm-matrix }}
+      instrumented-task: ${{ steps.tiers.outputs.instrumented-task }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: tiers
+        uses: TomasGC/Condor/.github/actions/discover-test-tiers@feature/anglerfish-#53-discover-test-tiers
+        with:
+          java-version: ${{ inputs.java-version }}
 
-  integration-mock:
-    needs: [detect-changes, unit-tests]
-    if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true')
-    uses: ./.github/workflows/kotlin-integration-mock.yml
-    with:
-      java-version: ${{ inputs.java-version }}
-      python-version: ${{ inputs.python-version }}
-      pre-test-command: ${{ inputs.pre-test-command }}
-      retention-days: ${{ inputs.retention-days }}
-      mock-job: ${{ inputs.mock-job }}
-
-  integration-real:
-    needs: [detect-changes, integration-mock]
-    if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true')
-    uses: ./.github/workflows/kotlin-integration-real.yml
-    with:
-      java-version: ${{ inputs.java-version }}
-      python-version: ${{ inputs.python-version }}
-      pre-test-command: ${{ inputs.pre-test-command }}
-      retention-days: ${{ inputs.retention-days }}
+  jvm-tests:
+    name: Tests / ${{ matrix.task }}
+    needs: [detect-changes, discover-tests]
+    if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true') && needs.discover-tests.outputs.jvm-matrix != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.discover-tests.outputs.jvm-matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: ${{ inputs.java-version }}
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-read-only: false
+      - uses: actions/setup-python@v5
+        if: inputs.pre-test-command != ''
+        with:
+          python-version: ${{ inputs.python-version }}
+      - name: Pre-test setup
+        if: inputs.pre-test-command != ''
+        run: ${{ inputs.pre-test-command }}
+      - run: ./gradlew ${{ matrix.task }}
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ replace(matrix.task, ':', '') }}-test-results
+          path: '**/build/test-results/'
+          retention-days: ${{ inputs.retention-days }}
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ replace(matrix.task, ':', '') }}-coverage-data
+          path: '**/build/kover/bin-reports/*.ic'
+          if-no-files-found: ignore
+          retention-days: ${{ inputs.retention-days }}
 
   build-apk:
-    needs: [detect-changes, integration-real]
+    needs: [detect-changes, jvm-tests]
     if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true')
     uses: ./.github/workflows/kotlin-build-apk.yml
     with:
@@ -117,7 +131,7 @@ jobs:
       retention-days: ${{ inputs.retention-days }}
 
   coverage:
-    needs: [detect-changes, integration-real]
+    needs: [detect-changes, jvm-tests]
     if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true')
     uses: ./.github/workflows/kotlin-coverage.yml
     secrets: inherit
@@ -130,8 +144,8 @@ jobs:
       retention-days: ${{ inputs.retention-days }}
 
   instrumented-tests:
-    needs: [detect-changes, build-apk]
-    if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true')
+    needs: [detect-changes, discover-tests, build-apk]
+    if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true') && needs.discover-tests.outputs.instrumented-task != ''
     uses: ./.github/workflows/kotlin-instrumented-tests.yml
     with:
       java-version: ${{ inputs.java-version }}
@@ -142,3 +156,4 @@ jobs:
       device-archives-path: ${{ inputs.device-archives-path }}
       manage-external-storage-package: ${{ inputs.manage-external-storage-package }}
       retention-days: ${{ inputs.retention-days }}
+      test-task: ${{ needs.discover-tests.outputs.instrumented-task }}
