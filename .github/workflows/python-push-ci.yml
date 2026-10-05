@@ -1,5 +1,9 @@
 name: Python / Push CI
 
+# The one Python pipeline for every project (Kotlin apps' scripts, Meerkat, ...). Projects differ only by layout
+# inputs; thresholds, tools and tiers are the same for all. Each tier is selected by its pytest marker, which every
+# project applies from the tier directory (<component>/tests/<tier>/, root conftest rule).
+
 on:
   workflow_call:
     inputs:
@@ -7,19 +11,26 @@ on:
         description: "Skip pipeline if no Python files changed. Set false to always run."
         type: boolean
         default: true
-      python-version:
-        type: string
-        default: '3.12'
       scripts-dir:
-        description: "Directory where Python scripts live (relative to repo root)"
+        description: "Directory pytest and the linters run from (relative to repo root)"
         type: string
         default: 'scripts'
-      coverage-threshold:
-        type: number
-        default: 80
-      pylint-fail-under:
-        type: number
-        default: 7
+      requirements:
+        description: "Requirement files, space-separated, relative to scripts-dir"
+        type: string
+        default: 'requirements-test.txt'
+      source-dirs:
+        description: "Source directories (relative to scripts-dir): linted, type-checked, measured by coverage"
+        type: string
+        default: 'src'
+      exclude-dirs:
+        description: "Directory names never linted or measured (e.g. deliberately flawed test fixtures)"
+        type: string
+        default: ''
+      exclude-marker:
+        description: "Marker of tests that need a local-only resource; deselected in every tier and in coverage"
+        type: string
+        default: 'local_only'
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -31,52 +42,62 @@ jobs:
     with:
       scripts-dir: ${{ inputs.scripts-dir }}
 
-  unit-tests:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.scripts == 'true')
-    uses: ./.github/workflows/python-unit-tests.yml
-    with:
-      python-version: ${{ inputs.python-version }}
-      scripts-dir: ${{ inputs.scripts-dir }}
-
   lint-checks:
     needs: detect-changes
     if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.scripts == 'true')
     uses: ./.github/workflows/python-lint-checks.yml
     with:
-      python-version: ${{ inputs.python-version }}
       scripts-dir: ${{ inputs.scripts-dir }}
-      pylint-fail-under: ${{ inputs.pylint-fail-under }}
+      requirements: ${{ inputs.requirements }}
+      source-dirs: ${{ inputs.source-dirs }}
+      exclude-dirs: ${{ inputs.exclude-dirs }}
+
+  unit-tests:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.scripts == 'true')
+    uses: ./.github/workflows/python-pytest.yml
+    with:
+      working-directory: ${{ inputs.scripts-dir }}
+      requirements: ${{ inputs.requirements }}
+      marker: unit and not ${{ inputs.exclude-marker }}
+      allow-no-tests: true
 
   integration-mock:
     needs: [detect-changes, unit-tests]
     if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.scripts == 'true')
-    uses: ./.github/workflows/python-integration-mock.yml
+    uses: ./.github/workflows/python-pytest.yml
     with:
-      python-version: ${{ inputs.python-version }}
-      scripts-dir: ${{ inputs.scripts-dir }}
+      working-directory: ${{ inputs.scripts-dir }}
+      requirements: ${{ inputs.requirements }}
+      marker: integration_mock and not ${{ inputs.exclude-marker }}
+      allow-no-tests: true
 
   integration-real:
     needs: [detect-changes, integration-mock]
     if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.scripts == 'true')
-    uses: ./.github/workflows/python-integration-real.yml
+    uses: ./.github/workflows/python-pytest.yml
     with:
-      python-version: ${{ inputs.python-version }}
-      scripts-dir: ${{ inputs.scripts-dir }}
+      working-directory: ${{ inputs.scripts-dir }}
+      requirements: ${{ inputs.requirements }}
+      marker: integration_real and not ${{ inputs.exclude-marker }}
+      allow-no-tests: true
 
   coverage:
     needs: [detect-changes, integration-real]
     if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.scripts == 'true')
     uses: ./.github/workflows/python-coverage.yml
     with:
-      python-version: ${{ inputs.python-version }}
       scripts-dir: ${{ inputs.scripts-dir }}
-      coverage-threshold: ${{ inputs.coverage-threshold }}
+      requirements: ${{ inputs.requirements }}
+      source-dirs: ${{ inputs.source-dirs }}
+      exclude-marker: ${{ inputs.exclude-marker }}
 
   e2e:
     needs: [detect-changes, integration-real]
     if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.scripts == 'true')
-    uses: ./.github/workflows/python-e2e-tests.yml
+    uses: ./.github/workflows/python-pytest.yml
     with:
-      python-version: ${{ inputs.python-version }}
-      scripts-dir: ${{ inputs.scripts-dir }}
+      working-directory: ${{ inputs.scripts-dir }}
+      requirements: ${{ inputs.requirements }}
+      marker: e2e and not ${{ inputs.exclude-marker }}
+      allow-no-tests: true

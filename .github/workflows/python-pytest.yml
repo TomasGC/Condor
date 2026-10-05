@@ -52,8 +52,9 @@ jobs:
           REQUIREMENTS: ${{ inputs.requirements }}
         run: |
           python -m pip install --upgrade pip
+          read -r -a files <<< "$REQUIREMENTS"
           args=()
-          for file in $REQUIREMENTS; do
+          for file in "${files[@]}"; do
             args+=(-r "$file")
           done
           if [ ${#args[@]} -eq 0 ]; then

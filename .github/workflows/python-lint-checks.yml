@@ -1,5 +1,10 @@
 name: Python / Lint Checks
 
+# Same tools and thresholds for every project; only the layout differs. Linted: the source dirs plus tests/ when it
+# exists (flake8, black, isort, pylint, vulture). Security-scanned: sources only, tests excluded (bandit).
+# Type-checked: the source dirs, the project's mypy config deciding what inside them is skipped (mypy).
+# Tool settings in the project (.flake8, pyproject.toml) are read too and may only add to these.
+
 on:
   workflow_call:
     inputs:
@@ -9,12 +14,23 @@ on:
       scripts-dir:
         type: string
         default: 'scripts'
-      pylint-fail-under:
-        type: number
-        default: 7
+      requirements:
+        description: "Requirement files, space-separated, relative to scripts-dir"
+        type: string
+        default: 'requirements-test.txt'
+      source-dirs:
+        description: "Source directories, space-separated, relative to scripts-dir"
+        type: string
+        default: 'src'
+      exclude-dirs:
+        description: "Directory names never linted (space-separated)"
+        type: string
+        default: ''
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  PYLINT_FAIL_UNDER: 7
+  MAX_LINE_LENGTH: 120
 
 jobs:
   python-lint:
@@ -23,6 +39,9 @@ jobs:
     defaults:
       run:
         working-directory: ${{ inputs.scripts-dir }}
+    env:
+      SOURCE_DIRS: ${{ inputs.source-dirs }}
+      EXCLUDE_DIRS: ${{ inputs.exclude-dirs }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -30,7 +49,13 @@ jobs:
           python-version: ${{ inputs.python-version }}
       - run: pip install flake8
       - name: Run flake8
-        run: flake8 src/ tests/ --max-line-length=120 --statistics
+        run: |
+          read -r -a paths <<< "$SOURCE_DIRS"; [ -d tests ] && paths+=(tests)
+          read -r -a excluded <<< "$EXCLUDE_DIRS"
+          args=(--max-line-length="$MAX_LINE_LENGTH" --extend-ignore=E203 --statistics)
+          # E203 contradicts black's slice formatting (black's documented flake8 setting)
+          if [ ${#excluded[@]} -gt 0 ]; then args+=(--extend-exclude="$(IFS=,; echo "${excluded[*]}")"); fi
+          flake8 "${paths[@]}" "${args[@]}"
 
   style-checks:
     name: Lint Checks / Style Checks
@@ -38,6 +63,9 @@ jobs:
     defaults:
       run:
         working-directory: ${{ inputs.scripts-dir }}
+    env:
+      SOURCE_DIRS: ${{ inputs.source-dirs }}
+      EXCLUDE_DIRS: ${{ inputs.exclude-dirs }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -45,9 +73,18 @@ jobs:
           python-version: ${{ inputs.python-version }}
       - run: pip install black isort
       - name: Run black
-        run: black --check --line-length=120 src/ tests/
+        run: |
+          read -r -a paths <<< "$SOURCE_DIRS"; [ -d tests ] && paths+=(tests)
+          read -r -a excluded <<< "$EXCLUDE_DIRS"
+          args=(--check --line-length="$MAX_LINE_LENGTH")
+          if [ ${#excluded[@]} -gt 0 ]; then args+=(--extend-exclude "/($(IFS='|'; echo "${excluded[*]}"))/"); fi
+          black "${args[@]}" "${paths[@]}"
       - name: Run isort
-        run: isort --check --profile=black src/ tests/
+        run: |
+          read -r -a paths <<< "$SOURCE_DIRS"; [ -d tests ] && paths+=(tests)
+          read -r -a excluded <<< "$EXCLUDE_DIRS"
+          skips=(); for d in "${excluded[@]}"; do skips+=(--skip-glob "**/$d/**"); done
+          isort --check --profile=black --line-length="$MAX_LINE_LENGTH" "${skips[@]}" "${paths[@]}"
 
   quality:
     name: Lint Checks / Quality
@@ -55,14 +92,27 @@ jobs:
     defaults:
       run:
         working-directory: ${{ inputs.scripts-dir }}
+    env:
+      SOURCE_DIRS: ${{ inputs.source-dirs }}
+      EXCLUDE_DIRS: ${{ inputs.exclude-dirs }}
+      REQUIREMENTS: ${{ inputs.requirements }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ inputs.python-version }}
-      - run: pip install pylint -r requirements-test.txt
+      - name: Install pylint and the project's requirements
+        run: |
+          read -r -a files <<< "$REQUIREMENTS"
+          reqs=(); for f in "${files[@]}"; do reqs+=(-r "$f"); done
+          pip install pylint "${reqs[@]}"
       - name: Run pylint
-        run: pylint src/ tests/ --fail-under=${{ inputs.pylint-fail-under }} --disable=C0114,C0115,C0116
+        run: |
+          read -r -a paths <<< "$SOURCE_DIRS"; [ -d tests ] && paths+=(tests)
+          read -r -a excluded <<< "$EXCLUDE_DIRS"
+          args=(--fail-under="$PYLINT_FAIL_UNDER" "--disable=C0114,C0115,C0116")
+          if [ ${#excluded[@]} -gt 0 ]; then args+=(--ignore-paths=".*/($(IFS='|'; echo "${excluded[*]}"))/.*"); fi
+          pylint "${paths[@]}" "${args[@]}"
 
   type-checks:
     name: Lint Checks / Type Checks
@@ -70,6 +120,8 @@ jobs:
     defaults:
       run:
         working-directory: ${{ inputs.scripts-dir }}
+    env:
+      SOURCE_DIRS: ${{ inputs.source-dirs }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -77,7 +129,11 @@ jobs:
           python-version: ${{ inputs.python-version }}
       - run: pip install mypy
       - name: Run mypy
-        run: mypy src/ --ignore-missing-imports --no-error-summary
+        # No --exclude here: on the command line it would replace the project's own mypy `exclude`. A project whose
+        # source dirs also hold tests or fixtures excludes them in its mypy config.
+        run: |
+          read -r -a paths <<< "$SOURCE_DIRS"
+          mypy "${paths[@]}" --ignore-missing-imports --no-error-summary
 
   security:
     name: Lint Checks / Security
@@ -85,6 +141,9 @@ jobs:
     defaults:
       run:
         working-directory: ${{ inputs.scripts-dir }}
+    env:
+      SOURCE_DIRS: ${{ inputs.source-dirs }}
+      EXCLUDE_DIRS: ${{ inputs.exclude-dirs }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -92,7 +151,11 @@ jobs:
           python-version: ${{ inputs.python-version }}
       - run: pip install bandit
       - name: Run bandit
-        run: bandit -r src/ -ll -q
+        run: |
+          read -r -a paths <<< "$SOURCE_DIRS"
+          read -r -a excluded <<< "$EXCLUDE_DIRS"
+          exclude="*/tests/*"; for d in "${excluded[@]}"; do exclude="$exclude,*/$d/*"; done
+          bandit -r "${paths[@]}" -ll -q -x "$exclude"
 
   vulnerabilities:
     name: Lint Checks / Vulnerabilities
@@ -100,6 +163,8 @@ jobs:
     defaults:
       run:
         working-directory: ${{ inputs.scripts-dir }}
+    env:
+      REQUIREMENTS: ${{ inputs.requirements }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -107,7 +172,10 @@ jobs:
           python-version: ${{ inputs.python-version }}
       - run: pip install pip-audit
       - name: Install project dependencies
-        run: pip install -r requirements-test.txt
+        run: |
+          read -r -a files <<< "$REQUIREMENTS"
+          reqs=(); for f in "${files[@]}"; do reqs+=(-r "$f"); done
+          pip install "${reqs[@]}"
       - name: Run pip-audit
         run: pip-audit
 
@@ -117,6 +185,9 @@ jobs:
     defaults:
       run:
         working-directory: ${{ inputs.scripts-dir }}
+    env:
+      SOURCE_DIRS: ${{ inputs.source-dirs }}
+      EXCLUDE_DIRS: ${{ inputs.exclude-dirs }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -124,4 +195,9 @@ jobs:
           python-version: ${{ inputs.python-version }}
       - run: pip install vulture
       - name: Run vulture
-        run: vulture src/ tests/ --min-confidence=80
+        run: |
+          read -r -a paths <<< "$SOURCE_DIRS"; [ -d tests ] && paths+=(tests)
+          read -r -a excluded <<< "$EXCLUDE_DIRS"
+          args=(--min-confidence=80)
+          if [ ${#excluded[@]} -gt 0 ]; then args+=(--exclude "$(printf '*/%s/*,' "${excluded[@]}")"); fi
+          vulture "${paths[@]}" "${args[@]}"
