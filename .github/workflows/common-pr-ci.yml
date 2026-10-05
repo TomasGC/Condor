@@ -1,5 +1,8 @@
 name: Common / PR-CI
 
+# Children are called with ./ paths: they come from the same Condor commit as this file, so a caller that pins
+# this workflow to a SHA pins the whole PR pipeline.
+
 on:
   workflow_call:
     inputs:
@@ -15,13 +18,33 @@ on:
         description: "Head SHA for checkout"
         type: string
         required: true
+      contexts-dir:
+        description: "Directory holding kanban.md, architecture.md and tests.md"
+        type: string
+        default: '.claude/contexts'
+      code-paths:
+        description: "Extended regex: changed files that count as code (kanban.md becomes mandatory)"
+        type: string
+        default: '^app/src/'
+      test-paths:
+        description: "Extended regex: changed files that count as tests (tests.md recommended)"
+        type: string
+        default: '^app/src/(test|androidTest)/'
+      dependency-check:
+        description: "Run the Gradle dependency vulnerability scan (Kotlin/Android projects)"
+        type: boolean
+        default: true
+      apk-size-check:
+        description: "Check the debug APK size from the latest Push-CI run (Android projects)"
+        type: boolean
+        default: true
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   check-pr-exists:
-    uses: TomasGC/Condor/.github/workflows/common-check-pr-exists.yml@main
+    uses: ./.github/workflows/common-check-pr-exists.yml
     secrets: inherit
     with:
       push-ci-conclusion: ${{ inputs.push-ci-conclusion }}
@@ -30,34 +53,40 @@ jobs:
   pr-validation:
     needs: check-pr-exists
     if: needs.check-pr-exists.outputs.has_pr == 'true'
-    uses: TomasGC/Condor/.github/workflows/common-pr-title-validation.yml@main
+    uses: ./.github/workflows/common-pr-title-validation.yml
     with:
       pr-title: ${{ needs.check-pr-exists.outputs.pr_title }}
 
   context-check:
     needs: check-pr-exists
     if: needs.check-pr-exists.outputs.has_pr == 'true'
-    uses: TomasGC/Condor/.github/workflows/common-context-check.yml@main
+    uses: ./.github/workflows/common-context-check.yml
     with:
       head-sha: ${{ inputs.head-sha }}
+      contexts-dir: ${{ inputs.contexts-dir }}
+      code-paths: ${{ inputs.code-paths }}
+      test-paths: ${{ inputs.test-paths }}
 
   context-comment:
     needs: [check-pr-exists, context-check]
     if: always() && needs.check-pr-exists.outputs.has_pr == 'true' && needs.context-check.result == 'failure'
-    uses: TomasGC/Condor/.github/workflows/common-context-comment.yml@main
+    uses: ./.github/workflows/common-context-comment.yml
     permissions:
       pull-requests: write
     with:
       pr-number: ${{ needs.check-pr-exists.outputs.pr_number }}
       missing: ${{ needs.context-check.outputs.missing }}
       warnings: ${{ needs.context-check.outputs.warnings }}
+      contexts-dir: ${{ inputs.contexts-dir }}
 
   security-checks:
     needs: check-pr-exists
     if: needs.check-pr-exists.outputs.has_pr == 'true'
-    uses: TomasGC/Condor/.github/workflows/common-security-checks.yml@main
+    uses: ./.github/workflows/common-security-checks.yml
     permissions:
       contents: read
       pull-requests: write
     with:
       head-sha: ${{ inputs.head-sha }}
+      dependency-check: ${{ inputs.dependency-check }}
+      apk-size-check: ${{ inputs.apk-size-check }}
