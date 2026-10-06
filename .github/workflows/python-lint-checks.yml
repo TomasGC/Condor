@@ -31,6 +31,16 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   PYLINT_FAIL_UNDER: 7
   MAX_LINE_LENGTH: 120
+  # Pinned: an unpinned tool changes its verdict for every project on its next release (isort 9 re-sorts imports
+  # isort 8 accepted). Bump on purpose, here only.
+  FLAKE8_VERSION: '7.4.1'
+  BLACK_VERSION: '26.10.0'
+  ISORT_VERSION: '9.0.2'
+  PYLINT_VERSION: '4.1.2'
+  MYPY_VERSION: '2.4.0'
+  BANDIT_VERSION: '1.9.4'
+  PIP_AUDIT_VERSION: '2.10.1'
+  VULTURE_VERSION: '2.16'
 
 jobs:
   python-lint:
@@ -47,7 +57,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ inputs.python-version }}
-      - run: pip install flake8
+      - run: pip install "flake8==$FLAKE8_VERSION"
       - name: Run flake8
         run: |
           read -r -a paths <<< "$SOURCE_DIRS"; [ -d tests ] && paths+=(tests)
@@ -71,7 +81,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ inputs.python-version }}
-      - run: pip install black isort
+      - run: pip install "black==$BLACK_VERSION" "isort==$ISORT_VERSION"
       - name: Run black
         run: |
           read -r -a paths <<< "$SOURCE_DIRS"; [ -d tests ] && paths+=(tests)
@@ -105,7 +115,7 @@ jobs:
         run: |
           read -r -a files <<< "$REQUIREMENTS"
           reqs=(); for f in "${files[@]}"; do reqs+=(-r "$f"); done
-          pip install pylint "${reqs[@]}"
+          pip install "pylint==$PYLINT_VERSION" "${reqs[@]}"
       - name: Run pylint
         run: |
           read -r -a paths <<< "$SOURCE_DIRS"; [ -d tests ] && paths+=(tests)
@@ -127,7 +137,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ inputs.python-version }}
-      - run: pip install mypy
+      - run: pip install "mypy==$MYPY_VERSION"
       - name: Run mypy
         # No --exclude here: on the command line it would replace the project's own mypy `exclude`. A project whose
         # source dirs also hold tests or fixtures excludes them in its mypy config.
@@ -149,7 +159,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ inputs.python-version }}
-      - run: pip install bandit
+      - run: pip install "bandit==$BANDIT_VERSION"
       - name: Run bandit
         run: |
           read -r -a paths <<< "$SOURCE_DIRS"
@@ -171,7 +181,7 @@ jobs:
         with:
           python-version: ${{ inputs.python-version }}
       # pip itself is audited too: an outdated runner pip would fail the project for a tool it does not ship
-      - run: python -m pip install --upgrade pip pip-audit
+      - run: python -m pip install --upgrade pip "pip-audit==$PIP_AUDIT_VERSION"
       - name: Install project dependencies
         run: |
           read -r -a files <<< "$REQUIREMENTS"
@@ -194,7 +204,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ inputs.python-version }}
-      - run: pip install vulture
+      - run: pip install "vulture==$VULTURE_VERSION"
       - name: Run vulture
         run: |
           read -r -a paths <<< "$SOURCE_DIRS"; [ -d tests ] && paths+=(tests)
