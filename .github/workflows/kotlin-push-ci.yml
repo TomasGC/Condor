@@ -1,5 +1,9 @@
 name: Kotlin / Push CI
 
+# The one Kotlin pipeline for every project. Projects differ only by inputs: the Gradle commands of each test tier
+# and the instrumented task. Validation and lint run beside the unit tier; each later tier waits for the one before
+# it. A failed tier stops the tiers after it; an empty tier is skipped and does not stop them.
+
 on:
   workflow_call:
     inputs:
@@ -15,6 +19,22 @@ on:
         default: '3.12'
       pre-test-command:
         description: "Shell commands to run before each JVM test job (e.g. archive generation). Supports && chaining."
+        type: string
+        default: ''
+      unit-tasks:
+        description: 'JSON array of Gradle commands for the unit tier, e.g. [":core:test", ":app:testDebugUnitTest"]. Empty list skips the tier.'
+        type: string
+        default: '[]'
+      integration-mock-tasks:
+        description: 'JSON array of Gradle commands for the integration-mock tier. Empty list skips the tier.'
+        type: string
+        default: '[]'
+      integration-real-tasks:
+        description: 'JSON array of Gradle commands for the integration-real tier. Empty list skips the tier.'
+        type: string
+        default: '[]'
+      instrumented-task:
+        description: 'Gradle task that runs the instrumented tests, e.g. ":app-instrumented:connectedDebugAndroidTest". Empty skips the tier.'
         type: string
         default: ''
       avd-name:
@@ -45,14 +65,6 @@ on:
       retention-days:
         type: number
         default: 7
-      unit-job:
-        description: "Run kotlin-unit-tests.yml as a single generic 'unit' job instead of its domain-service/data/ui three-way split. For projects too small to warrant that split."
-        type: boolean
-        default: false
-      mock-job:
-        description: "Run kotlin-integration-mock.yml as a single generic 'mock' job instead of its extractors/service-viewmodel two-way split. For projects too small to warrant that split."
-        type: boolean
-        default: false
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -75,41 +87,41 @@ jobs:
     with:
       java-version: ${{ inputs.java-version }}
 
+  # Runs beside validation and lint: a failing check does not stop the tests.
   unit-tests:
     needs: detect-changes
     if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true')
-    uses: ./.github/workflows/kotlin-unit-tests.yml
+    uses: ./.github/workflows/kotlin-gradle-tier.yml
     with:
+      tasks: ${{ inputs.unit-tasks }}
       java-version: ${{ inputs.java-version }}
-      python-version: ${{ inputs.python-version }}
       pre-test-command: ${{ inputs.pre-test-command }}
       retention-days: ${{ inputs.retention-days }}
-      unit-job: ${{ inputs.unit-job }}
 
+  # Tier chain: a failed tier stops the next ones; a skipped (empty) tier does not.
   integration-mock:
     needs: [detect-changes, unit-tests]
-    if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true')
-    uses: ./.github/workflows/kotlin-integration-mock.yml
+    if: ${{ !failure() && !cancelled() && needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true') }}
+    uses: ./.github/workflows/kotlin-gradle-tier.yml
     with:
+      tasks: ${{ inputs.integration-mock-tasks }}
       java-version: ${{ inputs.java-version }}
-      python-version: ${{ inputs.python-version }}
       pre-test-command: ${{ inputs.pre-test-command }}
       retention-days: ${{ inputs.retention-days }}
-      mock-job: ${{ inputs.mock-job }}
 
   integration-real:
     needs: [detect-changes, integration-mock]
-    if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true')
-    uses: ./.github/workflows/kotlin-integration-real.yml
+    if: ${{ !failure() && !cancelled() && needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true') }}
+    uses: ./.github/workflows/kotlin-gradle-tier.yml
     with:
+      tasks: ${{ inputs.integration-real-tasks }}
       java-version: ${{ inputs.java-version }}
-      python-version: ${{ inputs.python-version }}
       pre-test-command: ${{ inputs.pre-test-command }}
       retention-days: ${{ inputs.retention-days }}
 
   build-apk:
     needs: [detect-changes, integration-real]
-    if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true')
+    if: ${{ !failure() && !cancelled() && needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true') }}
     uses: ./.github/workflows/kotlin-build-apk.yml
     with:
       java-version: ${{ inputs.java-version }}
@@ -118,7 +130,7 @@ jobs:
 
   coverage:
     needs: [detect-changes, integration-real]
-    if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true')
+    if: ${{ !failure() && !cancelled() && needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true') }}
     uses: ./.github/workflows/kotlin-coverage.yml
     secrets: inherit
     with:
@@ -131,7 +143,7 @@ jobs:
 
   instrumented-tests:
     needs: [detect-changes, build-apk]
-    if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true')
+    if: ${{ !failure() && !cancelled() && needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true') && inputs.instrumented-task != '' }}
     uses: ./.github/workflows/kotlin-instrumented-tests.yml
     with:
       java-version: ${{ inputs.java-version }}
@@ -142,3 +154,4 @@ jobs:
       device-archives-path: ${{ inputs.device-archives-path }}
       manage-external-storage-package: ${{ inputs.manage-external-storage-package }}
       retention-days: ${{ inputs.retention-days }}
+      test-task: ${{ inputs.instrumented-task }}

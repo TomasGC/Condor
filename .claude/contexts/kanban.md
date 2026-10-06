@@ -4,6 +4,16 @@ Track of work sessions and completed tasks linked to consuming project issues.
 
 ---
 
+2026-10-06 - [condor] #15 Generic Kotlin push pipeline with test tiers as inputs
+- `kotlin-gradle-tier.yml`: one test tier, one matrix job per Gradle command (JSON list input); an empty list skips the tier
+- `kotlin-push-ci.yml`: validation and lint beside the unit tier; unit, integration-mock and integration-real chained; build-apk and coverage after integration-real; instrumented-tests when `instrumented-task` is set
+- Inputs `unit-tasks`, `integration-mock-tasks`, `integration-real-tasks`, `instrumented-task`; `kotlin-instrumented-tests.yml` takes `test-task`. Removed `unit-job`/`mock-job` and the three tier workflows
+- Verified from a throwaway Anglerfish branch pinned to the commit: unit matrix, integration tiers, coverage, build-apk and both instrumented shards green
+tags: #ci #kotlin #matrix #condor
+Ref: https://github.com/TomasGC/Condor/issues/15
+Commit: 8c80945
+
+---
 2026-10-05 - [meerkat] #2 Run the test suites on GitHub Actions from any checkout
 - `python-push-ci.yml` is the one Python pipeline of every project (Kotlin apps' scripts, Meerkat): each tier, coverage included, selects tests by marker (`<tier> and not <exclude-marker>`) through the new `python-pytest.yml`; projects differ only by layout inputs (`scripts-dir`, `requirements`, `source-dirs`, `exclude-dirs`, `exclude-marker`), thresholds are the same for all
 - The per-directory tier workflows are removed: they ran only `tests/unit/{android,cli,common}/` (29 Otter unit tests never ran in CI). Breaking for Otter, Raven, Anglerfish: each must mark tests by tier directory (one issue per repo, step 1 pins Condor)
