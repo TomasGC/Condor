@@ -24,12 +24,10 @@
     ├── kotlin-coverage.yml                # Kover coverage report + threshold enforcement
     ├── kotlin-detect-changes.yml          # Detect Kotlin/Gradle file changes + docs-only check
     ├── kotlin-instrumented-tests.yml      # Android emulator tests: self-contained matrix (2 shards)
-    ├── kotlin-integration-mock.yml        # Integration tests with mocked subprocess
-    ├── kotlin-integration-real.yml        # Integration tests against real archives
     ├── kotlin-lint-checks.yml             # Android lint, ktlint, detekt, OWASP, TruffleHog
     ├── kotlin-nvd-refresh.yml             # Scheduled NVD database refresh (OWASP)
     ├── kotlin-push-ci.yml                 # Orchestrator: full Kotlin pipeline
-    ├── kotlin-unit-tests.yml              # JVM unit + integration-mock + integration-real
+├── kotlin-gradle-tier.yml              # One test tier: matrix of Gradle commands (empty list skips)
     ├── kotlin-validation.yml              # Branch name, commit format, TODO, large files
     ├── python-coverage.yml                # unit + integration_mock + integration_real coverage, 80% gate
     ├── python-detect-changes.yml          # Detect Python file changes + docs-only check
@@ -210,15 +208,15 @@ in the caller's checkout, so `check-docs-only` stays referenced as `TomasGC/Cond
 ```
 detect-changes
     │
-    ├── validation (branch, commit, TODO, large files)
-    ├── lint-checks (android lint, ktlint, detekt, OWASP, TruffleHog)
+    ├── validation (branch, commit, TODO, large files)   ┐ parallel
+    ├── lint-checks (android lint, ktlint, detekt, OWASP, TruffleHog) ┘
     │
-    ├── unit-tests
-    │       └── integration-mock
-    │               └── integration-real
-    │                       ├── build-apk ──→ instrumented-tests
+    ├── unit (matrix: one job per unit-tasks command)
+    │       └── integration-mock (matrix)
+    │               └── integration-real (matrix)
+    │                       ├── build-apk ──→ instrumented-tests (only if instrumented-task is set)
     │                       └── coverage
-    └── (all blocked by detect-changes gate if skip-on-no-changes=true)
+    └── (all blocked by detect-changes gate if skip-on-no-changes=true; an empty tier is skipped, not failed)
 ```
 
 ---

@@ -125,14 +125,12 @@ file is flat and named `<language>-<stage>.yml`. Pin a caller to a commit SHA (`
 
 | Workflow | Description |
 |----------|-------------|
-| `kotlin-push-ci.yml` | Full Kotlin pipeline (validation → lint → tests → build → coverage → instrumented) |
+| `kotlin-push-ci.yml` | Full Kotlin pipeline: validation and lint beside the unit tier; unit, integration-mock and integration-real tiers chained; build, coverage, instrumented |
 | `kotlin-cd.yml` | Release pipeline (unit tests + signed APK + GitHub Release) |
 | `kotlin-nvd-refresh.yml` | Scheduled NVD database refresh for OWASP dependency checks |
 | `kotlin-validation.yml` | Branch name, commit format, TODO check, large files |
 | `kotlin-lint-checks.yml` | Android lint, ktlint, detekt, OWASP, TruffleHog |
-| `kotlin-unit-tests.yml` | JVM unit + integration tests |
-| `kotlin-integration-mock.yml` | Integration tests with mocked subprocess |
-| `kotlin-integration-real.yml` | Integration tests against real archives |
+| `kotlin-gradle-tier.yml` | One test tier: one matrix job per Gradle command, an empty list skips the tier |
 | `kotlin-build-apk.yml` | Debug APK build + size check |
 | `kotlin-coverage.yml` | Kover coverage report + threshold enforcement |
 | `kotlin-instrumented-tests.yml` | Android emulator tests + archive push |
@@ -164,6 +162,10 @@ would run it, or when nothing is collected at all.
 | Input | Type | Default | Description |
 |-------|------|---------|-------------|
 | `skip-on-no-changes` | boolean | `false` | Skip pipeline if no Kotlin/Gradle files changed |
+| `unit-tasks` | string | `'[]'` | JSON array of Gradle commands for the unit tier, e.g. `[":core:test", ":app:testDebugUnitTest"]` |
+| `integration-mock-tasks` | string | `'[]'` | JSON array of Gradle commands for the integration-mock tier |
+| `integration-real-tasks` | string | `'[]'` | JSON array of Gradle commands for the integration-real tier |
+| `instrumented-task` | string | `''` | Gradle task for the instrumented tests; empty skips the tier |
 | `java-version` | string | `21` | JDK version |
 | `python-version` | string | `3.12` | Python version (for archive generation) |
 | `pre-test-command` | string | `''` | Command to run before each JVM test job (e.g. generate test archives) |
