@@ -170,7 +170,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ inputs.python-version }}
-      - run: pip install pip-audit
+      # pip itself is audited too: an outdated runner pip would fail the project for a tool it does not ship
+      - run: python -m pip install --upgrade pip pip-audit
       - name: Install project dependencies
         run: |
           read -r -a files <<< "$REQUIREMENTS"
