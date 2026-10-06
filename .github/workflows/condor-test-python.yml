@@ -1,0 +1,53 @@
+name: Condor / Test Python Pipeline
+
+# Condor runs its Python pipeline on fixture projects, the way every project calls it:
+# - tests/fixtures/python-project: one test per tier plus a local_only test that fails if it ever runs; the whole
+#   pipeline (lint, collection guard, four tiers, coverage) must pass.
+# - tests/fixtures/python-project-unmarked: a test outside every tier directory; the collection guard, in report
+#   mode, must count it.
+
+on:
+  push:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: condor-test-python-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pipeline:
+    name: Pipeline on a well-formed project
+    uses: ./.github/workflows/python-push-ci.yml
+    with:
+      skip-on-no-changes: false
+      scripts-dir: tests/fixtures/python-project
+      requirements: requirements-test.txt
+      source-dirs: src
+      exclude-marker: local_only
+
+  guard-on-unmarked:
+    name: Collection guard on unmarked tests
+    uses: ./.github/workflows/python-test-markers.yml
+    with:
+      scripts-dir: tests/fixtures/python-project-unmarked
+      requirements: requirements-test.txt
+      fail-on-violation: false
+
+  guard-reports-unmarked:
+    name: Guard reports the unmarked test
+    needs: guard-on-unmarked
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the guard's counts
+        env:
+          TOTAL: ${{ needs.guard-on-unmarked.outputs.total-count }}
+          UNMARKED: ${{ needs.guard-on-unmarked.outputs.unmarked-count }}
+        run: |
+          echo "total=$TOTAL unmarked=$UNMARKED"
+          if [ "$TOTAL" != "2" ] || [ "$UNMARKED" != "1" ]; then
+            echo "ERROR: expected 2 collected and 1 unmarked"
+            exit 1
+          fi
+          echo "SUCCESS: the guard found the test outside every tier"

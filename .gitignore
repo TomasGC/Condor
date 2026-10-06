@@ -11,3 +11,9 @@ Thumbs.db
 .claude/tmpclaude/
 .claude/sessions/
 .claude/logs/
+
+# Python (fixture projects run locally)
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.coverage

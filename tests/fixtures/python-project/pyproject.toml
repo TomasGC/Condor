@@ -1,0 +1,6 @@
+# Tool settings only. isort's src_paths make `calc` first-party wherever isort runs from.
+
+[tool.isort]
+profile = "black"
+line_length = 120
+src_paths = ["src", "tests"]
