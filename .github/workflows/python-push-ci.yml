@@ -52,8 +52,17 @@ jobs:
       source-dirs: ${{ inputs.source-dirs }}
       exclude-dirs: ${{ inputs.exclude-dirs }}
 
-  unit-tests:
+  # Tiers tolerate an empty selection; this guard makes a test without a tier marker, or an empty suite, fail
+  test-markers:
     needs: detect-changes
+    if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.scripts == 'true')
+    uses: ./.github/workflows/python-test-markers.yml
+    with:
+      scripts-dir: ${{ inputs.scripts-dir }}
+      requirements: ${{ inputs.requirements }}
+
+  unit-tests:
+    needs: [detect-changes, test-markers]
     if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.scripts == 'true')
     uses: ./.github/workflows/python-pytest.yml
     with:

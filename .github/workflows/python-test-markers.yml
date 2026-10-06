@@ -1,0 +1,98 @@
+name: Python / Test Markers
+
+# Collection guard: every tier job selects tests by marker and tolerates an empty tier, so a test without a tier
+# marker would silently run nowhere, and a suite that collects nothing would pass. This fails on both.
+# Decisions use pytest's exit codes (5 = nothing collected); counts are read from its summary line, whatever the
+# project's verbosity settings.
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        type: string
+        default: '3.12'
+      scripts-dir:
+        type: string
+        default: 'scripts'
+      requirements:
+        description: "Requirement files, space-separated, relative to scripts-dir"
+        type: string
+        default: 'requirements-test.txt'
+      fail-on-violation:
+        description: "Fail on unmarked tests or an empty suite. False: report the counts only"
+        type: boolean
+        default: true
+    outputs:
+      total-count:
+        description: "Tests collected"
+        value: ${{ jobs.markers.outputs.total-count }}
+      unmarked-count:
+        description: "Tests collected without a tier marker"
+        value: ${{ jobs.markers.outputs.unmarked-count }}
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  TIERS: 'unit or integration_mock or integration_real or e2e'
+
+jobs:
+  markers:
+    name: Test Markers
+    runs-on: ubuntu-latest
+    outputs:
+      total-count: ${{ steps.count.outputs.total }}
+      unmarked-count: ${{ steps.count.outputs.unmarked }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.scripts-dir }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+      - name: Install requirements
+        env:
+          REQUIREMENTS: ${{ inputs.requirements }}
+        run: |
+          read -r -a files <<< "$REQUIREMENTS"
+          reqs=(); for f in "${files[@]}"; do reqs+=(-r "$f"); done
+          python -m pip install --upgrade pip
+          python -m pip install pytest "${reqs[@]}"
+      - name: Count collected and unmarked tests
+        id: count
+        run: |
+          # Prints the number of selected tests and returns pytest's exit code (0 collected, 5 none, else an error).
+          collect() {
+            local out rc
+            out=$(python -m pytest --collect-only -p no:cacheprovider "$@" 2>&1) && rc=0 || rc=$?
+            local line; line=$(printf '%s\n' "$out" | grep -E "tests? collected|no tests collected" | tail -1 || true)
+            if [[ "$line" =~ ([0-9]+)/[0-9]+\ tests?\ collected ]] || [[ "$line" =~ ([0-9]+)\ tests?\ collected ]]; then
+              echo "${BASH_REMATCH[1]}"
+            else
+              echo 0
+            fi
+            if [ "$rc" -ne 0 ] && [ "$rc" -ne 5 ]; then printf '%s\n' "$out" | tail -20 >&2; fi
+            return "$rc"
+          }
+          total=$(collect) && total_rc=0 || total_rc=$?
+          unmarked=$(collect -m "not ($TIERS)") && unmarked_rc=0 || unmarked_rc=$?
+          if [ "$total_rc" -ne 0 ] && [ "$total_rc" -ne 5 ]; then echo "ERROR: test collection failed (exit $total_rc)"; exit 1; fi
+          if [ "$unmarked_rc" -eq 5 ]; then unmarked=0; fi
+          echo "total=$total" >> "$GITHUB_OUTPUT"
+          echo "unmarked=$unmarked" >> "$GITHUB_OUTPUT"
+          echo "Collected: $total tests, $unmarked without a tier marker"
+          if [ "$unmarked_rc" -eq 0 ]; then
+            echo "Tests without a tier marker (each must sit in tests/<tier>/ or carry the marker):"
+            python -m pytest --collect-only -q -p no:cacheprovider -m "not ($TIERS)" 2>/dev/null | grep "::" | head -50 || true
+          fi
+      - name: Enforce
+        if: inputs.fail-on-violation
+        env:
+          TOTAL: ${{ steps.count.outputs.total }}
+          UNMARKED: ${{ steps.count.outputs.unmarked }}
+        run: |
+          if [ "$TOTAL" -eq 0 ]; then echo "ERROR: no tests collected"; exit 1; fi
+          if [ "$UNMARKED" -gt 0 ]; then
+            echo "ERROR: $UNMARKED tests carry no tier marker, so no tier job runs them"
+            exit 1
+          fi
+          echo "SUCCESS: all $TOTAL tests carry a tier marker"
