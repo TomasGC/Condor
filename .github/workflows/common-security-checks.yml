@@ -158,9 +158,10 @@ jobs:
         id: find-run
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # A branch name is chosen by whoever pushes it: through env, never pasted into the script
+          BRANCH: ${{ github.head_ref }}
+          REPO: ${{ github.repository }}
         run: |
-          BRANCH="${{ github.head_ref }}"
-          REPO="${{ github.repository }}"
 
           echo "Looking for latest Push-CI run on branch: $BRANCH"
 
