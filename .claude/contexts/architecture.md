@@ -1,7 +1,7 @@
 # Architecture - Condor
 
 **Purpose**: Workflow structure, design decisions, and cross-repo usage patterns
-**Last Updated**: 2026-08-06
+**Last Updated**: 2026-10-05
 
 ---
 
@@ -14,11 +14,11 @@
 │       └── action.yml                     # Composite: detect if push contains only .md changes
 └── workflows/
     ├── common-check-pr-exists.yml         # Find open PR for a branch + extract title/number
-    ├── common-context-check.yml           # Verify .claude/contexts/ updated with code changes
+    ├── common-context-check.yml           # Verify context files updated with code changes (dir + path regexes are inputs)
     ├── common-context-comment.yml         # Post PR comment if context files missing
     ├── common-pr-ci.yml                   # Orchestrator: full PR validation pipeline
     ├── common-pr-title-validation.yml     # Validate #123: type: description format
-    ├── common-security-checks.yml         # OWASP dependency scan + TruffleHog + APK size
+    ├── common-security-checks.yml         # OWASP dependency scan + TruffleHog + APK size (Android jobs switchable)
     ├── kotlin-build-apk.yml               # Debug APK build + size check
     ├── kotlin-cd.yml                      # Orchestrator: release pipeline
     ├── kotlin-coverage.yml                # Kover coverage report + threshold enforcement
@@ -31,14 +31,11 @@
     ├── kotlin-push-ci.yml                 # Orchestrator: full Kotlin pipeline
     ├── kotlin-unit-tests.yml              # JVM unit + integration-mock + integration-real
     ├── kotlin-validation.yml              # Branch name, commit format, TODO, large files
-    ├── python-coverage.yml                # pytest coverage + threshold enforcement
+    ├── python-coverage.yml                # unit + integration_mock + integration_real coverage, 80% gate
     ├── python-detect-changes.yml          # Detect Python file changes + docs-only check
-    ├── python-e2e-tests.yml               # End-to-end tests
-    ├── python-integration-mock.yml        # Integration tests with FakeSubprocessRunner
-    ├── python-integration-real.yml        # Integration tests with real tools
-    ├── python-lint-checks.yml             # flake8, black, isort
-    ├── python-push-ci.yml                 # Orchestrator: full Python pipeline
-    └── python-unit-tests.yml              # pytest unit tests
+    ├── python-lint-checks.yml             # flake8, black, isort, pylint, mypy, bandit, pip-audit, vulture
+    ├── python-push-ci.yml                 # Orchestrator: the one Python pipeline of every project
+    └── python-pytest.yml                  # One pytest run: dir, requirements, marker, extra args (one per tier)
 ```
 
 ---
@@ -65,7 +62,7 @@ device-archives-path: /sdcard/otter
 
 When a caller repo (e.g., otter) references condor workflows:
 ```yaml
-uses: TomasGC/condor/.github/workflows/kotlin/push-ci.yml@main
+uses: TomasGC/Condor/.github/workflows/kotlin-push-ci.yml@main
 ```
 
 GitHub executes condor's YAML but `actions/checkout` checks out the **caller's** code. This means:
@@ -170,9 +167,41 @@ workflow_run (Push-CI completes)
 
 | File | Trigger | Level |
 |------|---------|-------|
-| `.claude/contexts/kanban.md` | Any `app/src/` change | Mandatory (fails CI) |
-| `.claude/contexts/architecture.md` | New classes/interfaces/DI detected | Warning (comment only) |
-| `.claude/contexts/tests.md` | `app/src/test/` or `app/src/androidTest/` changed | Warning (comment only) |
+| `<contexts-dir>/kanban.md` | Any change matching `code-paths` | Mandatory (fails CI) |
+| `<contexts-dir>/architecture.md` | New classes/interfaces/DI detected in those changes | Warning (comment only) |
+| `<contexts-dir>/tests.md` | Any change matching `test-paths` | Warning (comment only) |
+
+Defaults describe an Android app (`.claude/contexts`, `^app/src/`, `^app/src/(test|androidTest)/`); a caller with
+another layout passes its own, e.g. Meerkat: `contexts`, Python sources, `tests/` directories.
+
+### One Python Pipeline, Tiers by Marker
+
+Every project's Python code (the Kotlin apps' `scripts/`, Meerkat's whole repo) goes through the same
+`python-push-ci.yml`: same tools, same thresholds (pylint 7, coverage 80, line length 120). Projects differ only by
+layout inputs (`scripts-dir`, `requirements`, `source-dirs`, `exclude-dirs`, `exclude-marker`).
+
+Each tier is one `python-pytest.yml` call selecting `-m "<tier> and not <exclude-marker>"`; every project marks its
+tests from the tier directory (root `conftest.py` rule, markers registered in `pytest.ini`). The per-directory tier
+workflows this replaced ran only `tests/unit/{android,cli,common}/`, so tests elsewhere in a tier never ran in CI
+(29 in Otter). Inputs reach the shell through `env`, never interpolated into the script, so a marker expression
+cannot inject commands; space-separated inputs are split with `read -r -a`. Lint tool versions are pinned in
+`python-lint-checks.yml`, so a tool release changes nothing until the pin is bumped.
+
+A collection guard (`python-test-markers.yml`) runs before the tiers. Each tier tolerates an empty selection (a project may
+have no integration_mock tests), so without it a test outside every tier directory would run nowhere and a project
+with no marked tests would stay green while running nothing.
+
+### Condor Tests Itself
+
+`condor-lint.yml` (actionlint + shellcheck, every push), `condor-test-python.yml` (the Python pipeline on fixture
+projects under `tests/fixtures/`, every push) and `condor-test-pr.yml` (the PR pipeline on Condor's own PRs). A
+reusable workflow cannot be asserted to fail from its caller (`continue-on-error` is not allowed on a `uses:` job), so
+the negative case runs the guard with `fail-on-violation: false` and asserts its outputs. The Kotlin pipelines have no
+self-test yet (Android fixture, Gradle, emulator).
+
+`common-pr-ci.yml` calls its children with `./` paths: they come from the same Condor commit, so a caller pinning it
+to a SHA pins the whole PR pipeline. (Composite actions are the exception: `./` in a `uses:` of an action resolves
+in the caller's checkout, so `check-docs-only` stays referenced as `TomasGC/Condor/...@main`.)
 
 ---
 
@@ -196,8 +225,8 @@ detect-changes
 
 ## Adding a New Language Pipeline
 
-1. Create `<lang>/reusable/<stage>.yml` per concern
-2. Create `<lang>/push-ci.yml` orchestrator with `uses: ./.github/workflows/<lang>/reusable/<stage>.yml`
+1. Create `.github/workflows/<lang>-<stage>.yml` per concern (reusable workflows must sit directly in `.github/workflows/`)
+2. Create `<lang>-push-ci.yml` orchestrator with `uses: ./.github/workflows/<lang>-<stage>.yml`
 3. Document inputs in `README.md`
 4. Update this file
 

@@ -81,8 +81,8 @@ Validation before commit:
 
 ### Adding a New Pipeline
 
-1. Create `<lang>/reusable/<stage>.yml` for each concern
-2. Create `<lang>/push-ci.yml` orchestrator calling reusables via `./` paths
+1. Create `.github/workflows/<lang>-<stage>.yml` for each concern (GitHub resolves reusable workflows only directly in `.github/workflows/`)
+2. Create `<lang>-push-ci.yml` orchestrator calling reusables via `./.github/workflows/<lang>-<stage>.yml`
 3. Document in `README.md` inputs table
 4. Update `contexts/architecture.md`
 
