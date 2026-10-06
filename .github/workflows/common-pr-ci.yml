@@ -18,6 +18,10 @@ on:
         description: "Head SHA for checkout"
         type: string
         required: true
+      title-pattern:
+        description: "Extended regex the PR title must match. Empty: '#123: type: description'"
+        type: string
+        default: ''
       contexts-dir:
         description: "Directory holding kanban.md, architecture.md and tests.md"
         type: string
@@ -56,6 +60,7 @@ jobs:
     uses: ./.github/workflows/common-pr-title-validation.yml
     with:
       pr-title: ${{ needs.check-pr-exists.outputs.pr_title }}
+      title-pattern: ${{ inputs.title-pattern }}
 
   context-check:
     needs: check-pr-exists
