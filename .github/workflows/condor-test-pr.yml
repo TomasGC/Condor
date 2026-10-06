@@ -1,0 +1,33 @@
+name: Condor / Test PR Pipeline
+
+# Condor runs its PR pipeline on its own pull requests, as a non-Android project would: its context files in
+# .claude/contexts/, workflows as the code, no Gradle or APK checks, and Condor's own title convention
+# ("[project] #N: type: description"). Triggered on pull_request, so it runs on every Condor PR from its branch.
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: condor-test-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  pr-pipeline:
+    name: PR pipeline on this PR
+    uses: ./.github/workflows/common-pr-ci.yml
+    secrets: inherit
+    with:
+      push-ci-conclusion: success
+      head-branch: ${{ github.head_ref }}
+      head-sha: ${{ github.event.pull_request.head.sha }}
+      title-pattern: '^\[[a-z]+\] #[0-9]+: (feat|fix|refactor|test|docs|chore|style|perf):'
+      contexts-dir: .claude/contexts
+      code-paths: '^\.github/'
+      test-paths: '^tests/'
+      dependency-check: false
+      apk-size-check: false

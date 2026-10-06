@@ -6,6 +6,18 @@ on:
       head-sha:
         type: string
         required: true
+      contexts-dir:
+        description: "Directory holding kanban.md, architecture.md and tests.md"
+        type: string
+        default: '.claude/contexts'
+      code-paths:
+        description: "Extended regex: changed files that count as code (kanban.md becomes mandatory)"
+        type: string
+        default: '^app/src/'
+      test-paths:
+        description: "Extended regex: changed files that count as tests (tests.md recommended)"
+        type: string
+        default: '^app/src/(test|androidTest)/'
     outputs:
       needs_update:
         value: ${{ jobs.check.outputs.needs_update }}
@@ -35,35 +47,40 @@ jobs:
 
       - name: Check if contexts are updated
         id: check
+        env:
+          CONTEXTS_DIR: ${{ inputs.contexts-dir }}
+          CODE_PATHS: ${{ inputs.code-paths }}
+          TEST_PATHS: ${{ inputs.test-paths }}
         run: |
-          echo "Checking context files..."
+          echo "Checking context files in $CONTEXTS_DIR/..."
 
-          CODE_CHANGES=$(git diff --name-only origin/main...HEAD | grep -E '^app/src/' || true)
-          TEST_CHANGES=$(git diff --name-only origin/main...HEAD | grep -E '^app/src/(test|androidTest)/' || true)
-          KANBAN_UPDATED=$(git diff --name-only origin/main...HEAD | grep -E '^\.claude/contexts/kanban\.md$' || true)
-          ARCHITECTURE_UPDATED=$(git diff --name-only origin/main...HEAD | grep -E '^\.claude/contexts/architecture\.md$' || true)
-          TESTS_UPDATED=$(git diff --name-only origin/main...HEAD | grep -E '^\.claude/contexts/tests\.md$' || true)
+          CHANGED=$(git diff --name-only origin/main...HEAD)
+          CODE_CHANGES=$(echo "$CHANGED" | grep -E "$CODE_PATHS" || true)
+          TEST_CHANGES=$(echo "$CHANGED" | grep -E "$TEST_PATHS" || true)
+          KANBAN_UPDATED=$(echo "$CHANGED" | grep -Fx "$CONTEXTS_DIR/kanban.md" || true)
+          ARCHITECTURE_UPDATED=$(echo "$CHANGED" | grep -Fx "$CONTEXTS_DIR/architecture.md" || true)
+          TESTS_UPDATED=$(echo "$CHANGED" | grep -Fx "$CONTEXTS_DIR/tests.md" || true)
 
           MISSING_FILES=""
           WARNINGS=""
 
           # kanban.md: mandatory for any code changes
           if [ -n "$CODE_CHANGES" ] && [ -z "$KANBAN_UPDATED" ]; then
-            echo "ERROR: .claude/contexts/kanban.md not updated (MANDATORY)"
+            echo "ERROR: $CONTEXTS_DIR/kanban.md not updated (MANDATORY)"
             MISSING_FILES="kanban.md"
           fi
 
           if [ -n "$CODE_CHANGES" ]; then
             # architecture.md: recommended for architectural changes
-            ARCH_CHANGES=$(git diff origin/main...HEAD -- app/src/ | grep -E '(class |interface |object |enum |data class |sealed |fun |@Inject|@Singleton|@HiltViewModel|Repository|UseCase|ViewModel)' || true)
+            ARCH_CHANGES=$(echo "$CODE_CHANGES" | xargs -d '\n' git diff origin/main...HEAD -- | grep -E '(class |interface |object |enum |data class |sealed |fun |@Inject|@Singleton|@HiltViewModel|Repository|UseCase|ViewModel)' || true)
             if [ -n "$ARCH_CHANGES" ] && [ -z "$ARCHITECTURE_UPDATED" ]; then
-              echo "WARNING: .claude/contexts/architecture.md not updated (architectural changes detected)"
+              echo "WARNING: $CONTEXTS_DIR/architecture.md not updated (architectural changes detected)"
               WARNINGS="architecture.md"
             fi
 
             # tests.md: recommended when test structure changes
             if [ -n "$TEST_CHANGES" ] && [ -z "$TESTS_UPDATED" ]; then
-              echo "WARNING: .claude/contexts/tests.md not updated (test files changed)"
+              echo "WARNING: $CONTEXTS_DIR/tests.md not updated (test files changed)"
               WARNINGS="${WARNINGS:+$WARNINGS,}tests.md"
             fi
           fi

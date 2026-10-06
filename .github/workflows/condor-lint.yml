@@ -1,0 +1,25 @@
+name: Condor / Lint
+
+# Condor's own static check: every workflow is parsed and its expressions and shell scripts checked, so a broken
+# workflow fails here instead of in a consumer's CI. shellcheck runs from inside actionlint, warnings and up.
+
+on:
+  push:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: condor-lint-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  actionlint:
+    name: actionlint + shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run actionlint
+        run: |
+          docker run --rm -e SHELLCHECK_OPTS="-S warning" -v "$PWD:/repo" -w /repo \
+            rhysd/actionlint:1.7.12 -color

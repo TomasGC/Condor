@@ -35,8 +35,12 @@ jobs:
       - uses: dorny/paths-filter@v3
         id: filter
         with:
+          # Patterns are relative to the repo root: a scripts-dir of '.' means no prefix ('./**' matches nothing).
+          # Besides the code: the files that change what the gates run or how (requirements, tool settings).
           filters: |
             scripts:
-              - '${{ inputs.scripts-dir }}/**/*.py'
-              - '${{ inputs.scripts-dir }}/pytest.ini'
-              - '${{ inputs.scripts-dir }}/requirements-test.txt'
+              - '${{ inputs.scripts-dir != '.' && format('{0}/', inputs.scripts-dir) || '' }}**/*.py'
+              - '${{ inputs.scripts-dir != '.' && format('{0}/', inputs.scripts-dir) || '' }}**/requirements*.txt'
+              - '${{ inputs.scripts-dir != '.' && format('{0}/', inputs.scripts-dir) || '' }}pytest.ini'
+              - '${{ inputs.scripts-dir != '.' && format('{0}/', inputs.scripts-dir) || '' }}pyproject.toml'
+              - '${{ inputs.scripts-dir != '.' && format('{0}/', inputs.scripts-dir) || '' }}.flake8'

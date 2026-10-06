@@ -1,5 +1,9 @@
 name: Python / Coverage
 
+# unit + integration_mock + integration_real, selected by marker like the tier jobs, measured on the source dirs.
+# One threshold for every project. A project's coverage config (pyproject.toml, .coveragerc) can omit paths inside
+# its source dirs, e.g. test trees that live next to the code.
+
 on:
   workflow_call:
     inputs:
@@ -9,12 +13,22 @@ on:
       scripts-dir:
         type: string
         default: 'scripts'
-      coverage-threshold:
-        type: number
-        default: 80
+      requirements:
+        description: "Requirement files, space-separated, relative to scripts-dir"
+        type: string
+        default: 'requirements-test.txt'
+      source-dirs:
+        description: "Source directories measured, space-separated, relative to scripts-dir"
+        type: string
+        default: 'src'
+      exclude-marker:
+        description: "Marker of tests that need a local-only resource; deselected"
+        type: string
+        default: 'local_only'
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  COVERAGE_THRESHOLD: 80
 
 jobs:
   coverage:
@@ -28,15 +42,23 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ inputs.python-version }}
-      - run: pip install -r requirements-test.txt
-      - name: Run coverage (unit + integration_mock + integration_real)
+      - name: Install requirements
+        env:
+          REQUIREMENTS: ${{ inputs.requirements }}
         run: |
-          PATHS="tests/unit/ tests/integration_real/"
-          [ -d tests/integration_mock ] && PATHS="tests/unit/ tests/integration_mock/ tests/integration_real/"
+          read -r -a files <<< "$REQUIREMENTS"
+          reqs=(); for f in "${files[@]}"; do reqs+=(-r "$f"); done
+          pip install pytest-cov "${reqs[@]}"
+      - name: Run coverage (unit + integration_mock + integration_real)
+        env:
+          SOURCE_DIRS: ${{ inputs.source-dirs }}
+          EXCLUDE_MARKER: ${{ inputs.exclude-marker }}
+        run: |
+          read -r -a dirs <<< "$SOURCE_DIRS"
+          cov=(); for d in "${dirs[@]}"; do cov+=(--cov="$d"); done
           python -m pytest \
-            $PATHS \
-            -m "not local_only" \
-            --cov=src \
-            --cov-report=term-missing \
-            --cov-fail-under=${{ inputs.coverage-threshold }} \
+            -m "(unit or integration_mock or integration_real) and not $EXCLUDE_MARKER" \
+            "${cov[@]}" \
+            --cov-report=term-missing:skip-covered \
+            --cov-fail-under="$COVERAGE_THRESHOLD" \
             -q

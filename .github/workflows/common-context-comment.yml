@@ -12,6 +12,10 @@ on:
       warnings:
         type: string
         default: ''
+      contexts-dir:
+        description: "Directory holding the context files, as passed to common-context-check.yml"
+        type: string
+        default: '.claude/contexts'
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -29,24 +33,26 @@ jobs:
           PR_NUMBER: ${{ inputs.pr-number }}
           MISSING: ${{ inputs.missing }}
           WARNINGS: ${{ inputs.warnings }}
+          CONTEXTS_DIR: ${{ inputs.contexts-dir }}
         with:
           script: |
             const missing = process.env.MISSING || '';
             const warnings = process.env.WARNINGS || '';
             const prNumber = parseInt(process.env.PR_NUMBER, 10);
+            const dir = process.env.CONTEXTS_DIR;
 
             let body = `## Context Files Not Updated\n\n`;
             body += `This PR modifies code but required context files are missing.\n\n`;
 
             if (missing.includes('kanban.md')) {
-              body += `### .claude/contexts/kanban.md (MANDATORY)\n\n`;
+              body += `### ${dir}/kanban.md (MANDATORY)\n\n`;
               body += `- Add entry for this PR/issue\n`;
               body += `- Update task status\n`;
               body += `- Document what was done\n\n`;
             }
 
             if (warnings.includes('architecture.md')) {
-              body += `### .claude/contexts/architecture.md (Recommended)\n\n`;
+              body += `### ${dir}/architecture.md (Recommended)\n\n`;
               body += `Architectural changes detected (new classes, interfaces, DI changes).\n`;
               body += `Consider updating if:\n`;
               body += `- New modules or layers added\n`;
@@ -55,7 +61,7 @@ jobs:
             }
 
             if (warnings.includes('tests.md')) {
-              body += `### .claude/contexts/tests.md (Recommended)\n\n`;
+              body += `### ${dir}/tests.md (Recommended)\n\n`;
               body += `Test files changed. Consider updating if:\n`;
               body += `- New test categories or tiers added\n`;
               body += `- Test counts or structure changed\n\n`;

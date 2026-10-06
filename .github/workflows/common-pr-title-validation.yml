@@ -6,6 +6,10 @@ on:
       pr-title:
         type: string
         required: true
+      title-pattern:
+        description: "Extended regex the title must match. Empty: '#123: type: description'"
+        type: string
+        default: ''
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -18,9 +22,12 @@ jobs:
       - name: Check PR title format
         env:
           PR_TITLE: ${{ inputs.pr-title }}
+          TITLE_PATTERN: ${{ inputs.title-pattern }}
         run: |
-          if ! echo "$PR_TITLE" | grep -qE '^#[0-9]+: (feat|fix|refactor|test|docs|chore|style|perf):'; then
-            echo "ERROR: PR title must follow format: #123: type: description"
+          PATTERN="${TITLE_PATTERN:-^#[0-9]+: (feat|fix|refactor|test|docs|chore|style|perf):}"
+          if ! printf '%s\n' "$PR_TITLE" | grep -qE "$PATTERN"; then
+            echo "ERROR: PR title must match: $PATTERN"
+            echo "Default format: #123: type: description"
             echo "Examples:"
             echo "  #1: feat: add ZIP extraction"
             echo "  #2: fix: resolve null pointer in extractor"

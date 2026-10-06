@@ -1,0 +1,87 @@
+name: Python / Pytest
+
+# One pytest run, layout-agnostic: the caller says where, what to install and which tests to select.
+# Call it once per tier (marker: unit, integration_mock, ...) or once for the whole suite.
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        type: string
+        default: '3.12'
+      working-directory:
+        description: "Directory pytest runs from (relative to the repo root)"
+        type: string
+        default: '.'
+      requirements:
+        description: "Requirement files to install, space- or newline-separated, relative to working-directory. Empty: pytest only"
+        type: string
+        default: ''
+      marker:
+        description: "Marker expression passed to -m (e.g. 'unit and not live_ai'). Empty: no marker filter"
+        type: string
+        default: ''
+      extra-args:
+        description: "Extra pytest arguments, split on whitespace (no quoting)"
+        type: string
+        default: ''
+      allow-no-tests:
+        description: "Treat 'no tests collected' (pytest exit code 5) as success"
+        type: boolean
+        default: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  pytest:
+    name: Pytest
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Install requirements
+        env:
+          REQUIREMENTS: ${{ inputs.requirements }}
+        run: |
+          python -m pip install --upgrade pip
+          read -r -a files <<< "$REQUIREMENTS"
+          args=()
+          for file in "${files[@]}"; do
+            args+=(-r "$file")
+          done
+          if [ ${#args[@]} -eq 0 ]; then
+            args=(pytest)
+          fi
+          python -m pip install "${args[@]}"
+
+      - name: Run pytest
+        env:
+          MARKER: ${{ inputs.marker }}
+          EXTRA_ARGS: ${{ inputs.extra-args }}
+          ALLOW_NO_TESTS: ${{ inputs.allow-no-tests }}
+        run: |
+          args=()
+          if [ -n "$MARKER" ]; then
+            args+=(-m "$MARKER")
+          fi
+          read -r -a extra <<< "$EXTRA_ARGS"
+          args+=("${extra[@]}")
+
+          set +e
+          python -m pytest "${args[@]}"
+          status=$?
+          set -e
+
+          if [ "$status" -eq 5 ] && [ "$ALLOW_NO_TESTS" = "true" ]; then
+            echo "No tests collected — allowed by allow-no-tests"
+            exit 0
+          fi
+          exit "$status"
