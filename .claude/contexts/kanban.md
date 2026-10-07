@@ -4,6 +4,17 @@ Track of work sessions and completed tasks linked to consuming project issues.
 
 ---
 
+2026-10-07 - [condor] #17 Kover coverage merges multi-module projects without artifact-path assumptions
+- `kotlin-coverage.yml` takes the same `unit-tasks`/`integration-mock-tasks`/`integration-real-tasks` inputs as `kotlin-push-ci.yml` and runs them itself, in one Gradle invocation, right before `koverXmlReportDebug`; no cross-job artifact download, no reliance on `actions/upload-artifact` preserving a module's own `build/` path
+- Fixed a latent bug found while verifying: the threshold check read the first `<counter type="LINE">` in the XML (a per-class count) instead of the report's own rolled-up total, which is the last one. Anglerfish's merged report went from a meaningless "100% (5/5 lines)" to the real "47% (592/1248 lines)"
+- `kotlin-gradle-tier.yml` drops its now-unused coverage-data artifact upload
+- Trade-off: the JVM tests run twice (tier job for pass/fail, coverage job for the report). Correctness over CI minutes, for now
+- Verified on a throwaway Anglerfish branch pinned to the commit, with Kover applied to `:core` and merged into `:app`'s report (TomasGC/Anglerfish#57)
+tags: #ci #kotlin #coverage #kover #condor
+Ref: https://github.com/TomasGC/Condor/issues/17
+Commit: 1ce6780
+
+---
 2026-10-06 - [condor] #15 Generic Kotlin push pipeline with test tiers as inputs
 - `kotlin-gradle-tier.yml`: one test tier, one matrix job per Gradle command (JSON list input); an empty list skips the tier
 - `kotlin-push-ci.yml`: validation and lint beside the unit tier; unit, integration-mock and integration-real chained; build-apk and coverage after integration-real; instrumented-tests when `instrumented-task` is set
