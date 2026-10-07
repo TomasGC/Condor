@@ -44,21 +44,33 @@ lives at the root with tests next to each component, for example:
 
 ```yaml
 # .github/workflows/pr-ci.yml
+name: PR-CI
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, edited]   # edited: a title change re-runs the checks
+
+permissions:
+  contents: read
+  pull-requests: write   # context comment
+
+concurrency:
+  group: pr-ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   pr-checks:
     uses: TomasGC/Condor/.github/workflows/common-pr-ci.yml@main
-    secrets: inherit
-    with:
-      push-ci-conclusion: ${{ github.event.workflow_run.conclusion }}
-      head-branch: ${{ github.event.workflow_run.head_branch }}
-      head-sha: ${{ github.event.workflow_run.head_sha }}
-      # Non-Android project: its own context dir and code paths, no Gradle or APK checks
-      # contexts-dir: contexts
-      # code-paths: '\.py$'
-      # test-paths: '(^|/)tests/'
-      # dependency-check: false
-      # apk-size-check: false
+    # Non-Android project: its own context dir and code paths
+    # with:
+    #   contexts-dir: contexts
+    #   code-paths: '\.py$'
+    #   test-paths: '(^|/)tests/'
 ```
+
+PR-CI runs on the pull request itself: its checks sit on the PR's head commit, in the PR's checks list, so branch
+protection can require them next to Push-CI's (the push pipeline's checks are on the same commit). A PR opened after
+its branch's last push is checked when it opens. PR-CI does not wait for Push-CI: none of its checks reads the build.
 
 ```yaml
 # .github/workflows/cd.yml
@@ -82,14 +94,12 @@ jobs:
 ```
 
 ```yaml
-# Secret scan only (non-Android project: skip the Gradle and APK jobs)
+# Secret scan only
 jobs:
   security:
     uses: TomasGC/Condor/.github/workflows/common-security-checks.yml@main
     with:
       head-sha: ${{ github.event.pull_request.head.sha }}
-      dependency-check: false
-      apk-size-check: false
 ```
 
 ```yaml
@@ -114,12 +124,11 @@ file is flat and named `<language>-<stage>.yml`. Pin a caller to a commit SHA (`
 
 | Workflow | Description |
 |----------|-------------|
-| `common-pr-ci.yml` | Full PR validation pipeline (title, context files, security) |
-| `common-check-pr-exists.yml` | Find open PR for a branch |
+| `common-pr-ci.yml` | Full PR validation pipeline (title, context files, secret scan), called from a `pull_request` workflow |
 | `common-pr-title-validation.yml` | Validate `#123: type: description` format |
 | `common-context-check.yml` | Verify context files (default `.claude/contexts/`) updated with code changes |
 | `common-context-comment.yml` | Post PR comment listing missing context files |
-| `common-security-checks.yml` | OWASP dependency scan + TruffleHog + APK size check (each Android job can be switched off) |
+| `common-security-checks.yml` | TruffleHog secret scan of the PR's changes |
 
 ### Kotlin / Android
 
@@ -208,15 +217,12 @@ setting): a project whose source dirs also hold tests or fixtures excludes them 
 
 | Input | Type | Required | Description |
 |-------|------|----------|-------------|
-| `push-ci-conclusion` | string | ✅ | Push-CI conclusion (`success`/`failure`/`cancelled`) |
-| `head-branch` | string | ✅ | Head branch of the push |
-| `head-sha` | string | ✅ | Head SHA for checkout |
 | `title-pattern` | string | — | Passed to `common-pr-title-validation.yml`: extended regex the title must match; empty keeps `#123: type: description` |
 | `contexts-dir` | string | — | Passed to `common-context-check.yml` / `common-context-comment.yml` (default `.claude/contexts`) |
 | `code-paths`, `test-paths` | string | — | Passed to `common-context-check.yml` (defaults: Android `app/src/` layout) |
-| `dependency-check`, `apk-size-check` | boolean | — | Passed to `common-security-checks.yml` (default `true`) |
 
-Its child workflows are called with `./` paths, so pinning `common-pr-ci.yml` to a SHA pins the whole PR pipeline.
+The PR (number, title, head commit) comes from the `pull_request` event; a call from any other event fails its first
+job. Its child workflows are called with `./` paths, so pinning `common-pr-ci.yml` to a SHA pins the whole PR pipeline.
 
 ### `python-pytest.yml`
 
@@ -234,11 +240,9 @@ Its child workflows are called with `./` paths, so pinning `common-pr-ci.yml` to
 | Input | Type | Default | Description |
 |-------|------|---------|-------------|
 | `head-sha` | string | `''` | Commit to scan; empty uses `github.sha` |
-| `retention-days` | number | `7` | Security report retention |
-| `dependency-check` | boolean | `true` | Run the Gradle dependency scan (Kotlin/Android) |
-| `apk-size-check` | boolean | `true` | Check the debug APK size from Push-CI (Android) |
 
-The TruffleHog secret scan always runs.
+Dependency vulnerabilities are scanned in Push-CI's lint stage (OSV-Scanner), the APK size in `kotlin-build-apk.yml`
+(`apk-size-limit-mb`).
 
 ### `common-context-check.yml`
 
@@ -277,7 +281,7 @@ Condor runs its own pipelines on itself:
 |----------|---------|--------|
 | `condor-lint.yml` | every push | actionlint + shellcheck (warnings and up) on every workflow |
 | `condor-test-python.yml` | every push | `python-push-ci.yml` on `tests/fixtures/python-project` (all gates, four tiers, coverage; a `local_only` test fails if it ever runs) and the collection guard on `tests/fixtures/python-project-unmarked` |
-| `condor-test-pr.yml` | Condor's PRs | `common-pr-ci.yml` on the PR itself: title (`[project] #N: type: description`), context files, secret scan |
+| `condor-test-pr.yml` | Condor's PRs | `common-pr-ci.yml` on the PR itself, called like the caller template: title (`#N: type: description`), context files, secret scan |
 
 The Kotlin pipelines are not self-tested yet: that needs an Android fixture project, Gradle and an emulator.
 

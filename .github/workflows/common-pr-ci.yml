@@ -2,22 +2,14 @@ name: Common / PR-CI
 
 # Children are called with ./ paths: they come from the same Condor commit as this file, so a caller that pins
 # this workflow to a SHA pins the whole PR pipeline.
+#
+# Called from a pull_request workflow: the PR comes from the event, the checks run on the PR's head commit (so they
+# show in its checks list and can be required), and a PR opened after its last push is checked too. Nothing here
+# reads the build: APK size and dependency vulnerabilities are checked by the Push-CI pipelines.
 
 on:
   workflow_call:
     inputs:
-      push-ci-conclusion:
-        description: "Conclusion of the Push-CI workflow run"
-        type: string
-        required: true
-      head-branch:
-        description: "Head branch of the triggering push"
-        type: string
-        required: true
-      head-sha:
-        description: "Head SHA for checkout"
-        type: string
-        required: true
       title-pattern:
         description: "Extended regex the PR title must match. Empty: '#123: type: description'"
         type: string
@@ -34,64 +26,57 @@ on:
         description: "Extended regex: changed files that count as tests (tests.md recommended)"
         type: string
         default: '^app/src/(test|androidTest)/'
-      dependency-check:
-        description: "Run the Gradle dependency vulnerability scan (Kotlin/Android projects)"
-        type: boolean
-        default: true
-      apk-size-check:
-        description: "Check the debug APK size from the latest Push-CI run (Android projects)"
-        type: boolean
-        default: true
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  check-pr-exists:
-    uses: ./.github/workflows/common-check-pr-exists.yml
-    secrets: inherit
-    with:
-      push-ci-conclusion: ${{ inputs.push-ci-conclusion }}
-      head-branch: ${{ inputs.head-branch }}
+  pull-request:
+    name: Pull Request Event
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require a pull_request event
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" != "pull_request" ]; then
+            echo "ERROR: common-pr-ci.yml must be called from a workflow triggered by pull_request (got: $EVENT)"
+            exit 1
+          fi
+          echo "Checking PR #${{ github.event.pull_request.number }}"
 
   pr-validation:
-    needs: check-pr-exists
-    if: needs.check-pr-exists.outputs.has_pr == 'true'
+    needs: pull-request
     uses: ./.github/workflows/common-pr-title-validation.yml
     with:
-      pr-title: ${{ needs.check-pr-exists.outputs.pr_title }}
+      pr-title: ${{ github.event.pull_request.title }}
       title-pattern: ${{ inputs.title-pattern }}
 
   context-check:
-    needs: check-pr-exists
-    if: needs.check-pr-exists.outputs.has_pr == 'true'
+    needs: pull-request
     uses: ./.github/workflows/common-context-check.yml
     with:
-      head-sha: ${{ inputs.head-sha }}
+      head-sha: ${{ github.event.pull_request.head.sha }}
       contexts-dir: ${{ inputs.contexts-dir }}
       code-paths: ${{ inputs.code-paths }}
       test-paths: ${{ inputs.test-paths }}
 
   context-comment:
-    needs: [check-pr-exists, context-check]
-    if: always() && needs.check-pr-exists.outputs.has_pr == 'true' && needs.context-check.result == 'failure'
+    needs: context-check
+    if: always() && needs.context-check.result == 'failure'
     uses: ./.github/workflows/common-context-comment.yml
     permissions:
       pull-requests: write
     with:
-      pr-number: ${{ needs.check-pr-exists.outputs.pr_number }}
+      pr-number: ${{ github.event.pull_request.number }}
       missing: ${{ needs.context-check.outputs.missing }}
       warnings: ${{ needs.context-check.outputs.warnings }}
       contexts-dir: ${{ inputs.contexts-dir }}
 
   security-checks:
-    needs: check-pr-exists
-    if: needs.check-pr-exists.outputs.has_pr == 'true'
+    needs: pull-request
     uses: ./.github/workflows/common-security-checks.yml
     permissions:
       contents: read
-      pull-requests: write
     with:
-      head-sha: ${{ inputs.head-sha }}
-      dependency-check: ${{ inputs.dependency-check }}
-      apk-size-check: ${{ inputs.apk-size-check }}
+      head-sha: ${{ github.event.pull_request.head.sha }}
