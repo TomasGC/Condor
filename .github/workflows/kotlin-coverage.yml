@@ -13,6 +13,18 @@ on:
         description: "Shell commands needed to generate test data before Kover runs (e.g. archive generation). Supports && chaining."
         type: string
         default: ''
+      unit-tasks:
+        description: 'JSON array of Gradle commands for the unit tier. Run here too, so the merged report includes every module.'
+        type: string
+        default: '[]'
+      integration-mock-tasks:
+        description: 'JSON array of Gradle commands for the integration-mock tier.'
+        type: string
+        default: '[]'
+      integration-real-tasks:
+        description: 'JSON array of Gradle commands for the integration-real tier.'
+        type: string
+        default: '[]'
       coverage-threshold:
         type: number
         default: 80
@@ -41,13 +53,22 @@ jobs:
         with:
           cache-read-only: false
 
-      - name: Download all coverage data
-        uses: actions/download-artifact@v4
-        with:
-          pattern: "*-coverage-data"
-          path: app/build/kover/bin-reports/
-          merge-multiple: true
-        continue-on-error: true
+      # Re-runs the JVM test tiers here, in one Gradle invocation, instead of downloading each tier
+      # job's binary report: a cross-module .ic file (e.g. :core's) needs to land back at its own
+      # module path (core/build/kover/bin-reports/...) for Kover's cross-module merge to see it,
+      # and relying on actions/upload-artifact to preserve that path was not worth the risk.
+      - name: Run JVM test tiers
+        env:
+          UNIT_TASKS: ${{ inputs.unit-tasks }}
+          MOCK_TASKS: ${{ inputs.integration-mock-tasks }}
+          REAL_TASKS: ${{ inputs.integration-real-tasks }}
+        run: |
+          TASKS="$(jq -rn --argjson a "$UNIT_TASKS" --argjson b "$MOCK_TASKS" --argjson c "$REAL_TASKS" '($a + $b + $c) | join(" ")')"
+          if [ -z "$TASKS" ]; then
+            echo "No JVM tasks configured for this project; nothing to cover"
+          else
+            ./gradlew $TASKS
+          fi
 
       - uses: actions/setup-python@v5
         if: inputs.pre-test-command != ''
@@ -70,8 +91,11 @@ jobs:
             echo "ERROR: Coverage report not found at $XML_REPORT"
             exit 1
           fi
-          MISSED=$(grep '<counter type="LINE"' "$XML_REPORT" | sed -n 's/.*missed="\([0-9]*\)".*/\1/p' | head -1)
-          COVERED=$(grep '<counter type="LINE"' "$XML_REPORT" | sed -n 's/.*covered="\([0-9]*\)".*/\1/p' | head -1)
+          # The report element's own LINE counter (the project total) is the last one in the file:
+          # JaCoCo/Kover XML nests package/class/method counters inside it, so the outer report's
+          # rolled-up counter is written after all of them, not before.
+          MISSED=$(grep '<counter type="LINE"' "$XML_REPORT" | sed -n 's/.*missed="\([0-9]*\)".*/\1/p' | tail -1)
+          COVERED=$(grep '<counter type="LINE"' "$XML_REPORT" | sed -n 's/.*covered="\([0-9]*\)".*/\1/p' | tail -1)
           TOTAL=$((MISSED + COVERED))
           if [ "$TOTAL" -eq 0 ]; then
             echo "ERROR: No coverage data (0 lines)"
