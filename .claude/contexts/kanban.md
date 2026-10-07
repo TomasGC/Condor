@@ -4,6 +4,16 @@ Track of work sessions and completed tasks linked to consuming project issues.
 
 ---
 
+2026-10-07 - [#19] Run PR-CI on pull request events and report it on the PR
+- Callers run `pr-ci.yml` on `pull_request` (opened, reopened, synchronize, edited) instead of `workflow_run` after Push-CI: the checks sit on the PR's head commit, show in its checks list and can be required; a PR opened after its last push is checked; a title edit re-runs them
+- `common-pr-ci.yml` reads the PR from `github.event.pull_request` (a called workflow shares the caller's `github` context) and fails its first job outside a pull request; inputs are only `title-pattern`, `contexts-dir`, `code-paths`, `test-paths`. Breaking: every caller's `pr-ci.yml` changes
+- Removed the two jobs that tied PR-CI to Push-CI, both false greens: the APK size check read the latest Push-CI run of any branch (`github.head_ref` is empty under `workflow_run`) and duplicated `kotlin-build-apk.yml`; the dependency scan ran a Gradle task callers no longer have and passed on the missing report (OSV-Scanner in Push-CI covers it). `common-check-pr-exists.yml` deleted, `common-security-checks.yml` is the secret scan
+- Self-test `condor-test-pr.yml` calls the pipeline exactly like the README caller template
+- Condor's own conventions, now that it has its own board: commits `#N: type: description`, docs commits `docs: description`, branches `feature/N-description` (no `#`, which breaks a `uses:` ref), kanban titles `[#N]` with a consuming project's issue in Refs; the self-test uses the default title pattern
+tags: #pr-ci #pull-request #security #breaking
+Refs: https://github.com/TomasGC/Condor/issues/19, https://github.com/TomasGC/Meerkat/pull/56
+Commit: 803a2ae
+
 2026-10-07 - [condor] #17 Kover coverage merges multi-module projects without artifact-path assumptions
 - `kotlin-coverage.yml` takes the same `unit-tasks`/`integration-mock-tasks`/`integration-real-tasks` inputs as `kotlin-push-ci.yml` and runs them itself, in one Gradle invocation, right before `koverXmlReportDebug`; no cross-job artifact download, no reliance on `actions/upload-artifact` preserving a module's own `build/` path
 - Fixed a latent bug found while verifying: the threshold check read the first `<counter type="LINE">` in the XML (a per-class count) instead of the report's own rolled-up total, which is the last one. Anglerfish's merged report went from a meaningless "100% (5/5 lines)" to the real "47% (592/1248 lines)"
@@ -78,7 +88,7 @@ Commits: 611c8cc, 06c2d43
 
 - **One entry per issue** — updated each time you work on it
 - **Date** — last update date
-- **Title line**: `YYYY-MM-DD - [project] #ID Title`
+- **Title line**: `YYYY-MM-DD - [#ID] Title`; a related project issue goes in Refs
 - **Description** — bullet points describing work done (max 6 lines)
 - **Tags** — `tag:` (singular) or `tags:` (plural) with # prefix
 - **Ref/Refs** — link to consuming project's issue

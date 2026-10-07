@@ -1,7 +1,7 @@
 # Architecture - Condor
 
 **Purpose**: Workflow structure, design decisions, and cross-repo usage patterns
-**Last Updated**: 2026-10-05
+**Last Updated**: 2026-10-07
 
 ---
 
@@ -13,12 +13,11 @@
 │   └── check-docs-only/
 │       └── action.yml                     # Composite: detect if push contains only .md changes
 └── workflows/
-    ├── common-check-pr-exists.yml         # Find open PR for a branch + extract title/number
     ├── common-context-check.yml           # Verify context files updated with code changes (dir + path regexes are inputs)
     ├── common-context-comment.yml         # Post PR comment if context files missing
-    ├── common-pr-ci.yml                   # Orchestrator: full PR validation pipeline
+    ├── common-pr-ci.yml                   # Orchestrator: PR validation, called from a pull_request workflow
     ├── common-pr-title-validation.yml     # Validate #123: type: description format
-    ├── common-security-checks.yml         # OWASP dependency scan + TruffleHog + APK size (Android jobs switchable)
+    ├── common-security-checks.yml         # TruffleHog secret scan of the PR's changes
     ├── kotlin-build-apk.yml               # Debug APK build + size check
     ├── kotlin-cd.yml                      # Orchestrator: release pipeline
     ├── kotlin-coverage.yml                # Kover coverage report + threshold enforcement
@@ -68,23 +67,12 @@ GitHub executes condor's YAML but `actions/checkout` checks out the **caller's**
 - Condor cannot reference its own scripts — all scripts must live in the caller repo ✅
 - Nested `uses: ./` inside condor resolves to condor's own workflows ✅
 
-### 4. `workflow_call` Input Propagation
+### 4. The Caller's Event Reaches the Called Workflow
 
-`workflow_call` does NOT inherit `github.event.*` from the caller's trigger event. The caller must pass event data explicitly as inputs:
-
-```yaml
-# otter/pr-ci.yml (has workflow_run context)
-with:
-  push-ci-conclusion: ${{ github.event.workflow_run.conclusion }}
-  head-branch: ${{ github.event.workflow_run.head_branch }}
-  head-sha: ${{ github.event.workflow_run.head_sha }}
-
-# condor/common/pr-ci.yml (receives as inputs, no event context)
-inputs:
-  push-ci-conclusion:
-    type: string
-    required: true
-```
+A called workflow's `github` context is the caller's: `github.event_name` and `github.event.*` are those of the
+event that started the caller. `common-pr-ci.yml` reads the PR (number, title, head SHA) from
+`github.event.pull_request` and needs no input for it; its first job fails when the caller was not started by
+`pull_request`. Inputs are for what the event cannot say: a project's layout and conventions.
 
 ### 5. Instrumented Test Optimization (Self-Contained Shards)
 
@@ -152,14 +140,23 @@ VERSION=${TAG#v}
 ## PR Validation Pipeline
 
 ```
-workflow_run (Push-CI completes)
-    └── common/pr-ci.yml
-            ├── check-pr-exists       → outputs: has_pr, pr_number, pr_title
-            ├── pr-title-validation   → validates: #123: type: description
+pull_request (opened, reopened, synchronize, edited)
+    └── common-pr-ci.yml
+            ├── pull-request          → fails unless started by pull_request
+            ├── pr-validation         → validates the title (default #123: type: description)
             ├── context-check         → checks: kanban.md (mandatory), architecture.md + tests.md (warnings)
             ├── context-comment       → posts PR comment if context files missing
-            └── security-checks       → OWASP + TruffleHog + APK size
+            └── security-checks       → TruffleHog secret scan
 ```
+
+Why `pull_request`, not `workflow_run` after Push-CI (#19): a `workflow_run` run is attached to the default branch,
+so its result never reached the PR's checks list and could not be required; and a PR opened after its branch's last
+push was never checked (Push-CI's completion found no PR, nothing re-ran). On `pull_request` the checks sit on the
+PR's head commit, next to Push-CI's (a push run is on the same commit), and `edited` re-runs them on a title change.
+PR-CI no longer waits for Push-CI: its two build-dependent jobs were removed. The APK size check duplicated
+`kotlin-build-apk.yml`'s and, under `workflow_run`, read an empty `github.head_ref`, so it checked the latest Push-CI
+run of any branch. The dependency scan ran a Gradle task (`dependencyCheckAnalyze`) no caller has had since #10 and
+passed on the missing report; Push-CI's lint stage scans dependencies with OSV-Scanner.
 
 ### Context Check Rules
 

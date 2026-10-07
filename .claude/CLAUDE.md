@@ -1,7 +1,7 @@
 # Project Instructions - Condor
 
 **Purpose**: Reusable GitHub Actions workflow hub for TomasGC projects (and the community)
-**Last Updated**: 2026-06-21
+**Last Updated**: 2026-10-07
 
 ---
 
@@ -18,27 +18,27 @@
 
 #### Commit Format
 
-**Format**: `[project] #XXX: type: description`
+**Format**: `#XXX: type: description`
 
-- `[project]` — the consuming repo that triggered the work (e.g., `[otter]`, `[lynx]`)
-- `#XXX` — issue number in that repo
-- `type` — feat, fix, refactor, test, docs, chore
+- `#XXX` — the Condor issue (Condor has its own board; a consuming project's issue is referenced from the Condor issue and the kanban entry, never in the commit)
+- `type` — feat, fix, refactor, test, chore
+- Docs commits: `docs: description`, no issue number
 
 **Examples**:
 ```
-[otter] #44: feat: add common PR pipeline and security checks
-[otter] #44: fix: resolve context-check path for tests.md
-[lynx] #12: feat: add dotnet pipeline
+#19: feat: run the PR pipeline on pull request events
+#17: fix: build Kover coverage from the tier tasks, not cross-job artifacts
+docs: document the pull-request-driven PR pipeline
 ```
 
 **Rules**:
-- Always prefix with consuming project + issue number
+- Always prefix with the Condor issue number, except `docs` commits
 - No stats (+XX lines), no implementation details, no emoji
-- If change benefits all projects with no single driver: `[condor] #N: ...` using condor's own issue
 
 **Branch naming**:
-- Features: `feature/[project]-#XXX-description` (e.g., `feature/otter-#44-common-pipeline`)
-- Bugfixes: `bugfix/[project]-#XXX-description`
+- Features: `feature/XXX-description` (e.g., `feature/19-pr-ci-on-pull-request`)
+- Bugfixes: `bugfix/XXX-description`
+- No `#` in a branch name: a `uses: ...@<branch>` ref containing `#` fails at startup, so a branch could not be called before merge
 
 ---
 
