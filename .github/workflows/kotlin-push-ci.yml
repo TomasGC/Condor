@@ -140,6 +140,9 @@ jobs:
       coverage-threshold: ${{ inputs.coverage-threshold }}
       app-name: ${{ inputs.app-name }}
       retention-days: ${{ inputs.retention-days }}
+      unit-tasks: ${{ inputs.unit-tasks }}
+      integration-mock-tasks: ${{ inputs.integration-mock-tasks }}
+      integration-real-tasks: ${{ inputs.integration-real-tasks }}
 
   instrumented-tests:
     needs: [detect-changes, build-apk]
