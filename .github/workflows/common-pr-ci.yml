@@ -26,6 +26,10 @@ on:
         description: "Extended regex: changed files that count as tests (tests.md recommended)"
         type: string
         default: '^app/src/(test|androidTest)/'
+      context-check:
+        description: "Run the context check (kanban.md, architecture.md, tests.md). Turn off for a project whose context lives elsewhere, such as a wiki"
+        type: boolean
+        default: true
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -54,6 +58,7 @@ jobs:
 
   context-check:
     needs: pull-request
+    if: inputs.context-check
     uses: ./.github/workflows/common-context-check.yml
     with:
       head-sha: ${{ github.event.pull_request.head.sha }}
@@ -63,7 +68,7 @@ jobs:
 
   context-comment:
     needs: context-check
-    if: always() && needs.context-check.result == 'failure'
+    if: always() && inputs.context-check && needs.context-check.result == 'failure'
     uses: ./.github/workflows/common-context-comment.yml
     permissions:
       pull-requests: write
