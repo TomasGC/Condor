@@ -220,6 +220,7 @@ setting): a project whose source dirs also hold tests or fixtures excludes them 
 | `title-pattern` | string | — | Passed to `common-pr-title-validation.yml`: extended regex the title must match; empty keeps `#123: type: description` |
 | `contexts-dir` | string | — | Passed to `common-context-check.yml` / `common-context-comment.yml` (default `.claude/contexts`) |
 | `code-paths`, `test-paths` | string | — | Passed to `common-context-check.yml` (defaults: Android `app/src/` layout) |
+| `context-check` | boolean | `true` | `false` skips `common-context-check.yml` and `common-context-comment.yml`, for a project whose context lives outside the repo (a wiki); the title check and secret scan still run |
 
 The PR (number, title, head commit) comes from the `pull_request` event; a call from any other event fails its first
 job. Its child workflows are called with `./` paths, so pinning `common-pr-ci.yml` to a SHA pins the whole PR pipeline.

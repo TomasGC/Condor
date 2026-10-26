@@ -4,6 +4,16 @@ Track of work sessions and completed tasks linked to consuming project issues.
 
 ---
 
+2026-10-26 - [#21] Let a caller turn the context check off
+- `common-pr-ci.yml` gets a boolean input `context-check` (default `true`); `false` skips the `context-check` and `context-comment` jobs, the title check and secret scan still run. Existing callers are unchanged
+- For a project whose context lives in a wiki, with no `contexts/` folder: the check failed every code PR and could not be skipped
+- Removing the context check altogether later: the two jobs, this input, `contexts-dir`, `code-paths`, `test-paths` and the two `common-context-*.yml` files
+tags: #pr-ci #context-check
+Ref: https://github.com/TomasGC/Osprey/issues/53
+Commit: be064b8
+
+---
+
 2026-10-07 - [#19] Run PR-CI on pull request events and report it on the PR
 - Callers run `pr-ci.yml` on `pull_request` (opened, reopened, synchronize, edited) instead of `workflow_run` after Push-CI: the checks sit on the PR's head commit, show in its checks list and can be required; a PR opened after its last push is checked; a title edit re-runs them
 - `common-pr-ci.yml` reads the PR from `github.event.pull_request` (a called workflow shares the caller's `github` context) and fails its first job outside a pull request; inputs are only `title-pattern`, `contexts-dir`, `code-paths`, `test-paths`. Breaking: every caller's `pr-ci.yml` changes

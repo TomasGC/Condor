@@ -144,8 +144,8 @@ pull_request (opened, reopened, synchronize, edited)
     └── common-pr-ci.yml
             ├── pull-request          → fails unless started by pull_request
             ├── pr-validation         → validates the title (default #123: type: description)
-            ├── context-check         → checks: kanban.md (mandatory), architecture.md + tests.md (warnings)
-            ├── context-comment       → posts PR comment if context files missing
+            ├── context-check         → checks: kanban.md (mandatory), architecture.md + tests.md (warnings); skipped when `context-check: false`
+            ├── context-comment       → posts PR comment if context files missing; skipped with the check
             └── security-checks       → TruffleHog secret scan
 ```
 
@@ -168,6 +168,9 @@ passed on the missing report; Push-CI's lint stage scans dependencies with OSV-S
 
 Defaults describe an Android app (`.claude/contexts`, `^app/src/`, `^app/src/(test|androidTest)/`); a caller with
 another layout passes its own, e.g. Meerkat: `contexts`, Python sources, `tests/` directories.
+
+A project that keeps its context outside the repository (Osprey: GitHub wiki) passes `context-check: false`; the
+`contexts-dir`, `code-paths` and `test-paths` inputs are then unused.
 
 ### One Python Pipeline, Tiers by Marker
 
