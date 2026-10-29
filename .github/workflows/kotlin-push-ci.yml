@@ -1,8 +1,9 @@
 name: Kotlin / Push CI
 
 # The one Kotlin pipeline for every project. Projects differ only by inputs: the Gradle commands of each test tier
-# and the instrumented task. Validation and lint run beside the unit tier; each later tier waits for the one before
-# it. A failed tier stops the tiers after it; an empty tier is skipped and does not stop them.
+# and the environments the app runs in. Validation and lint run beside the unit tier; each later tier waits for the
+# one before it. A failed tier stops the tiers after it; an empty tier is skipped and does not stop them. Each
+# environment then gets one end-to-end check, E2E (<environment>), in parallel with the others.
 
 on:
   workflow_call:
@@ -33,10 +34,18 @@ on:
         description: 'JSON array of Gradle commands for the integration-real tier. Empty list skips the tier.'
         type: string
         default: '[]'
-      instrumented-task:
-        description: 'Gradle task that runs the instrumented tests, e.g. ":app-instrumented:connectedDebugAndroidTest". Empty skips the tier.'
+      app-environments:
+        description: 'JSON list of the environments the app runs in, e.g. ["android", "windows", "linux"]. Known: android, windows, linux. Each one gets an end-to-end check named E2E (<environment>); an unknown name fails the run at the start. An empty list skips the end-to-end checks and the APK build.'
         type: string
-        default: ''
+        default: '[]'
+      android-e2e-task:
+        description: 'Gradle task of the android end-to-end tests.'
+        type: string
+        default: ':app-instrumented:connectedDebugAndroidTest'
+      desktop-e2e-task:
+        description: 'Gradle task of the desktop end-to-end tests, run once per desktop environment.'
+        type: string
+        default: ':desktop:e2e'
       avd-name:
         type: string
         default: 'app_test_avd'
@@ -70,8 +79,24 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  # Always runs — lightweight, drives skip-on-no-changes gating below
+  # First of all: an unknown environment name stops the run before anything is built.
+  validate-environments:
+    name: Validate app environments
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the environment names
+        env:
+          ENVIRONMENTS: ${{ inputs.app-environments }}
+        run: |
+          unknown=$(jq -cn --argjson wanted "$ENVIRONMENTS" --argjson known '["android","windows","linux"]' '$wanted - $known')
+          if [ "$unknown" != "[]" ]; then
+            echo "::error::Unknown app environment(s) $unknown. Known: android, windows, linux."
+            exit 1
+          fi
+
+  # Lightweight, drives skip-on-no-changes gating below
   detect-changes:
+    needs: validate-environments
     uses: ./.github/workflows/kotlin-detect-changes.yml
 
   validation:
@@ -121,7 +146,7 @@ jobs:
 
   build-apk:
     needs: [detect-changes, integration-real]
-    if: ${{ !failure() && !cancelled() && needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true') }}
+    if: ${{ !failure() && !cancelled() && needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true') && contains(fromJSON(inputs.app-environments), 'android') }}
     uses: ./.github/workflows/kotlin-build-apk.yml
     with:
       java-version: ${{ inputs.java-version }}
@@ -144,10 +169,12 @@ jobs:
       integration-mock-tasks: ${{ inputs.integration-mock-tasks }}
       integration-real-tasks: ${{ inputs.integration-real-tasks }}
 
-  instrumented-tests:
+  # One stanza per known environment: `uses:` cannot take an expression, so a new environment is one file and one
+  # stanza here, and no project changes. The environments run in parallel after the integration-real tier.
+  e2e-android:
     needs: [detect-changes, build-apk]
-    if: ${{ !failure() && !cancelled() && needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true') && inputs.instrumented-task != '' }}
-    uses: ./.github/workflows/kotlin-instrumented-tests.yml
+    if: ${{ !failure() && !cancelled() && needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true') && contains(fromJSON(inputs.app-environments), 'android') }}
+    uses: ./.github/workflows/kotlin-env-android.yml
     with:
       java-version: ${{ inputs.java-version }}
       python-version: ${{ inputs.python-version }}
@@ -157,4 +184,26 @@ jobs:
       device-archives-path: ${{ inputs.device-archives-path }}
       manage-external-storage-package: ${{ inputs.manage-external-storage-package }}
       retention-days: ${{ inputs.retention-days }}
-      test-task: ${{ inputs.instrumented-task }}
+      test-task: ${{ inputs.android-e2e-task }}
+
+  e2e-windows:
+    needs: [detect-changes, integration-real]
+    if: ${{ !failure() && !cancelled() && needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true') && contains(fromJSON(inputs.app-environments), 'windows') }}
+    uses: ./.github/workflows/kotlin-env-desktop.yml
+    with:
+      os: windows
+      task: ${{ inputs.desktop-e2e-task }}
+      java-version: ${{ inputs.java-version }}
+      pre-test-command: ${{ inputs.pre-test-command }}
+      retention-days: ${{ inputs.retention-days }}
+
+  e2e-linux:
+    needs: [detect-changes, integration-real]
+    if: ${{ !failure() && !cancelled() && needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true') && contains(fromJSON(inputs.app-environments), 'linux') }}
+    uses: ./.github/workflows/kotlin-env-desktop.yml
+    with:
+      os: linux
+      task: ${{ inputs.desktop-e2e-task }}
+      java-version: ${{ inputs.java-version }}
+      pre-test-command: ${{ inputs.pre-test-command }}
+      retention-days: ${{ inputs.retention-days }}
