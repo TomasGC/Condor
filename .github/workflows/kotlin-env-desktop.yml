@@ -76,6 +76,7 @@ jobs:
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as out:
               out.write(f"### E2E ({os.environ['ENVIRONMENT']})\n\n| Passed | Failed | Skipped | Test time |\n|---|---|---|---|\n")
               out.write(f"| {passed} | {failed} | {skipped} | {seconds:.0f} s |\n")
+          print(f"E2E ({os.environ['ENVIRONMENT']}): {passed} passed, {failed} failed, {skipped} skipped, {seconds:.0f} s")
           if tests == 0:
               print("::error::No end-to-end test results were found")
               sys.exit(1)
