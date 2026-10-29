@@ -22,7 +22,8 @@
     ├── kotlin-cd.yml                      # Orchestrator: release pipeline
     ├── kotlin-coverage.yml                # Kover coverage report + threshold enforcement
     ├── kotlin-detect-changes.yml          # Detect Kotlin/Gradle file changes + docs-only check
-    ├── kotlin-instrumented-tests.yml      # Android emulator tests: self-contained matrix (2 shards)
+    ├── kotlin-env-android.yml             # Android environment: emulator tests in 2 shards + E2E (android) summary job
+    ├── kotlin-env-desktop.yml             # Desktop environment on one OS (windows or linux): E2E (<os>)
     ├── kotlin-lint-checks.yml             # Android lint, ktlint, detekt, OWASP, TruffleHog
     ├── kotlin-nvd-refresh.yml             # Scheduled NVD database refresh (OWASP)
     ├── kotlin-push-ci.yml                 # Orchestrator: full Kotlin pipeline
@@ -74,9 +75,9 @@ event that started the caller. `common-pr-ci.yml` reads the PR (number, title, h
 `github.event.pull_request` and needs no input for it; its first job fails when the caller was not started by
 `pull_request`. Inputs are for what the event cannot say: a project's layout and conventions.
 
-### 5. Instrumented Test Optimization (Self-Contained Shards)
+### 5. Android Environment (Self-Contained Shards, One Check)
 
-`kotlin-instrumented-tests.yml` uses a single self-contained matrix job (no separate avd-setup):
+`kotlin-env-android.yml` uses a single self-contained matrix job (no separate avd-setup), then one job that sums the shards:
 
 ```
 instrumented (matrix: shard-index [0, 1]) — each shard runs on its own runner
@@ -86,10 +87,15 @@ instrumented (matrix: shard-index [0, 1]) — each shard runs on its own runner
     ├── Install emulator via sdkmanager (cache miss only)
     │     Note: pixel4api30Setup installs system image only, not the emulator binary
     ├── Create AVD + cold boot (-no-snapshot-load -no-snapshot-save)
-    └── ./gradlew connectedDebugAndroidTest -PnumShards=2 -PshardIndex={shard}
+    └── ./gradlew <android-e2e-task> -PnumShards=2 -PshardIndex={shard}
+e2e = E2E (android): adds both shards' JUnit XML into one summary; red if a shard failed or no result was left
 ```
 
 **Why no AVD snapshot cache**: AVD snapshots encode QEMU machine state (CPU, memory layout). GitHub Actions runners are ephemeral VMs with non-deterministic hardware — restoring a snapshot on a different hypervisor/CPU configuration causes emulator boot failure (`adb wait-for-device` timeout 124). Removed; cold boot is reliable and fits in the 60-min job timeout.
+
+### 6. App Environments
+
+`app-environments` lists the environments; `validate-environments` is the first job and rejects an unknown name. One stanza per known environment in `kotlin-push-ci.yml`, gated by `contains(fromJSON(inputs.app-environments), '<name>')`, calls its file: android → `kotlin-env-android.yml`, windows and linux → `kotlin-env-desktop.yml` with `os`. A new environment is one file and one stanza. The summary script is inline in both environment files, because scripts cannot live in Condor for a cross-repo call.
 
 **Savings vs baseline** (system image + emulator cache hit, both shards parallel): ~11min saved (~2min system image + ~4min cold boot × 2 shards + ~5min per half-suite).
 
@@ -206,6 +212,8 @@ in the caller's checkout, so `check-docs-only` stays referenced as `TomasGC/Cond
 ## Kotlin Pipeline Flow
 
 ```
+validate-environments (an unknown name fails the run here)
+    │
 detect-changes
     │
     ├── validation (branch, commit, TODO, large files)   ┐ parallel
@@ -214,7 +222,8 @@ detect-changes
     ├── unit (matrix: one job per unit-tasks command)
     │       └── integration-mock (matrix)
     │               └── integration-real (matrix)
-    │                       ├── build-apk ──→ instrumented-tests (only if instrumented-task is set)
+    │                       ├── build-apk ──→ e2e-android (only if android is listed)
+    │                       ├── e2e-windows, e2e-linux (one JVM job each, if listed)
     │                       └── coverage
     └── (all blocked by detect-changes gate if skip-on-no-changes=true; an empty tier is skipped, not failed)
 ```

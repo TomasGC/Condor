@@ -4,6 +4,17 @@ Track of work sessions and completed tasks linked to consuming project issues.
 
 ---
 
+2026-10-29 - [#23] Declare app environments, one workflow file per environment
+- `kotlin-push-ci.yml` takes `app-environments` (JSON list: android, windows, linux) instead of `instrumented-task`; each environment gets one end-to-end check named `E2E (<environment>)`, in parallel after the integration-real tier; `android-e2e-task` and `desktop-e2e-task` override the convention; the APK build runs only when android is listed; an unknown name fails the run at the start
+- `kotlin-env-android.yml` (the old instrumented file; the 2 emulator shards are kept, plus the `E2E (android)` job that sums them) and `kotlin-env-desktop.yml` (one JVM job with an `os` input: windows-latest or ubuntu-latest); each check writes passed/failed/skipped/test time to its job summary and log, and is red when it finds no results
+- Breaking on purpose: `instrumented-task` is gone; Anglerfish, Otter and Raven are updated when next worked on
+- Verified from throwaway Osprey branches pinned to the branch: three parallel checks all green (android 23 passed, 10 skipped: the tests that need a folder grant); a test failing only on Windows turned only `E2E (windows)` red; a project without android ran no APK or android job; `["macos"]` failed at the start with the message and nothing else ran
+tags: #kotlin #environments #e2e #breaking
+Ref: https://github.com/TomasGC/Osprey/issues/64
+Commits: 0d057ca, babed81
+
+---
+
 2026-10-26 - [#21] Let a caller turn the context check off
 - `common-pr-ci.yml` gets a boolean input `context-check` (default `true`); `false` skips the `context-check` and `context-comment` jobs, the title check and secret scan still run. Existing callers are unchanged
 - For a project whose context lives in a wiki, with no `contexts/` folder: the check failed every code PR and could not be skipped

@@ -20,6 +20,7 @@ jobs:
       pre-test-command: python scripts/manage.py create archives --rpa-only
       archives-local-dir: archives/
       device-archives-path: /sdcard/myapp
+      app-environments: '["android"]'
       app-name: myapp
 
   python-pipeline:
@@ -134,15 +135,16 @@ file is flat and named `<language>-<stage>.yml`. Pin a caller to a commit SHA (`
 
 | Workflow | Description |
 |----------|-------------|
-| `kotlin-push-ci.yml` | Full Kotlin pipeline: validation and lint beside the unit tier; unit, integration-mock and integration-real tiers chained; build, coverage, instrumented |
+| `kotlin-push-ci.yml` | Full Kotlin pipeline: validation and lint beside the unit tier; unit, integration-mock and integration-real tiers chained; build and coverage, then one end-to-end check per app environment |
 | `kotlin-cd.yml` | Release pipeline (unit tests + signed APK + GitHub Release) |
 | `kotlin-nvd-refresh.yml` | Scheduled NVD database refresh for OWASP dependency checks |
 | `kotlin-validation.yml` | Branch name, commit format, TODO check, large files |
 | `kotlin-lint-checks.yml` | Android lint, ktlint, detekt, OWASP, TruffleHog |
 | `kotlin-gradle-tier.yml` | One test tier: one matrix job per Gradle command, an empty list skips the tier |
-| `kotlin-build-apk.yml` | Debug APK build + size check |
+| `kotlin-build-apk.yml` | Debug APK build + size check; runs only when `android` is an app environment |
 | `kotlin-coverage.yml` | Kover coverage report + threshold enforcement |
-| `kotlin-instrumented-tests.yml` | Android emulator tests + archive push |
+| `kotlin-env-android.yml` | The android environment: emulator tests in 2 shards + archive push, summed into `E2E (android)` |
+| `kotlin-env-desktop.yml` | A desktop environment on one OS (`windows` or `linux`): the desktop end-to-end task, `E2E (<os>)` |
 | `kotlin-detect-changes.yml` | Detect Kotlin/Gradle file changes |
 
 ### Python
@@ -174,7 +176,9 @@ would run it, or when nothing is collected at all.
 | `unit-tasks` | string | `'[]'` | JSON array of Gradle commands for the unit tier, e.g. `[":core:test", ":app:testDebugUnitTest"]` |
 | `integration-mock-tasks` | string | `'[]'` | JSON array of Gradle commands for the integration-mock tier |
 | `integration-real-tasks` | string | `'[]'` | JSON array of Gradle commands for the integration-real tier |
-| `instrumented-task` | string | `''` | Gradle task for the instrumented tests; empty skips the tier |
+| `app-environments` | string | `'[]'` | JSON list of where the app runs: `android`, `windows`, `linux`. One end-to-end check per name; an unknown name fails the run at the start |
+| `android-e2e-task` | string | `:app-instrumented:connectedDebugAndroidTest` | Gradle task of the android end-to-end tests |
+| `desktop-e2e-task` | string | `:desktop:e2e` | Gradle task of the desktop end-to-end tests, run once per desktop environment |
 | `java-version` | string | `21` | JDK version |
 | `python-version` | string | `3.12` | Python version (for archive generation) |
 | `pre-test-command` | string | `''` | Command to run before each JVM test job (e.g. generate test archives) |
@@ -184,6 +188,22 @@ would run it, or when nothing is collected at all.
 | `apk-size-limit-mb` | number | `50` | Maximum APK size in MB |
 | `app-name` | string | `app` | App name for coverage badge and artifact naming |
 | `retention-days` | number | `7` | Artifact retention days |
+
+### App environments
+
+A project says where its app runs, and the pipeline works out the rest:
+
+```yaml
+    with:
+      app-environments: '["android", "windows", "linux"]'
+```
+
+- **One check per environment**, named `E2E (android)`, `E2E (windows)`, `E2E (linux)`, in parallel after the integration-real tier. A failing end-to-end test turns only its own environment's check red.
+- **Convention:** android runs `:app-instrumented:connectedDebugAndroidTest`, desktop runs `:desktop:e2e`; `android-e2e-task` and `desktop-e2e-task` override them when a project's modules are named differently.
+- **Each check reports its own summary** (job summary and log line): tests passed, failed and skipped, and the test time. Skipped is shown on purpose: tests that skip without a folder grant or a device hide gaps. A check that finds no results at all is red.
+- **The APK build runs only when `android` is listed.** Coverage stays one merged number from the unit and integration tiers; the end-to-end checks are not part of it and have no threshold.
+- **Adding an environment** is one new `kotlin-env-<kind>.yml` and one stanza in `kotlin-push-ci.yml` (`uses:` cannot take an expression); no project changes.
+- **Breaking change:** `instrumented-task` is gone. Replace `instrumented-task: X` with `app-environments: '["android"]'` and, when X is not the default, `android-e2e-task: X`.
 
 ### `kotlin-cd.yml`
 
