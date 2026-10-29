@@ -1,4 +1,7 @@
-name: Kotlin / Instrumented Tests
+name: Kotlin / Android Environment
+
+# The end-to-end check of an Android app: the instrumented tests on an emulator, in two shards. `e2e`, named E2E
+# (android), adds both shards' results into one summary and is the check that turns red or green.
 
 on:
   workflow_call:
@@ -42,7 +45,7 @@ env:
 
 jobs:
   instrumented:
-    name: Instrumented Tests (shard ${{ matrix.shard-index }})
+    name: Android shard ${{ matrix.shard-index }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
@@ -168,3 +171,55 @@ jobs:
           name: instrumented-coverage-shard-${{ matrix.shard-index }}
           path: '**/build/outputs/code_coverage/'
           retention-days: ${{ inputs.retention-days }}
+
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-android-xml-shard-${{ matrix.shard-index }}
+          path: '**/build/outputs/androidTest-results/'
+          retention-days: ${{ inputs.retention-days }}
+
+  e2e:
+    name: E2E (android)
+    needs: instrumented
+    if: ${{ always() && !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: e2e-android-xml-shard-*
+          path: results
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Summary
+        env:
+          ENVIRONMENT: android
+          RESULTS_GLOB: 'results/**/*.xml'
+        run: |
+          python - <<'PY'
+          import glob, os, sys
+          import xml.etree.ElementTree as ET
+
+          files = glob.glob(os.environ["RESULTS_GLOB"], recursive=True)
+          tests = failed = skipped = 0
+          seconds = 0.0
+          for path in files:
+              root = ET.parse(path).getroot()
+              for suite in (root if root.tag == "testsuites" else [root]):
+                  tests += int(suite.get("tests", 0))
+                  failed += int(suite.get("failures", 0)) + int(suite.get("errors", 0))
+                  skipped += int(suite.get("skipped", 0))
+                  seconds += float(suite.get("time", 0))
+          passed = tests - failed - skipped
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as out:
+              out.write(f"### E2E ({os.environ['ENVIRONMENT']})\n\n| Passed | Failed | Skipped | Test time |\n|---|---|---|---|\n")
+              out.write(f"| {passed} | {failed} | {skipped} | {seconds:.0f} s |\n")
+          if tests == 0:
+              print("::error::No end-to-end test results were found")
+              sys.exit(1)
+          PY
+      - if: needs.instrumented.result != 'success'
+        run: |
+          echo "::error::An android shard failed"
+          exit 1
