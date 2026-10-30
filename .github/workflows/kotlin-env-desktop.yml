@@ -32,6 +32,10 @@ on:
         description: "Set REQUIRE_FIXTURES=1, so a test that needs the fixtures fails instead of being skipped."
         type: boolean
         default: false
+      install-ffmpeg:
+        description: "Install ffmpeg before the tests, for tests that decode HEIC photos or video frames with it."
+        type: boolean
+        default: false
       fixtures-environment:
         description: "GitHub Environment of the caller that holds the secret FIXTURES_DEPLOY_KEY and limits the branches that may read it."
         type: string
@@ -64,6 +68,9 @@ jobs:
       - name: Pre-test setup
         if: inputs.pre-test-command != ''
         run: ${{ inputs.pre-test-command }}
+      - name: Install ffmpeg
+        if: inputs.install-ffmpeg
+        uses: TomasGC/condor/.github/actions/install-ffmpeg@feature/25-private-fixtures
       - name: Fetch the private fixtures
         if: inputs.fixtures-repo != ''
         uses: TomasGC/condor/.github/actions/fetch-fixtures@feature/25-private-fixtures

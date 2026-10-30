@@ -86,6 +86,10 @@ on:
         description: "Set REQUIRE_FIXTURES=1, so a test that needs the fixtures fails instead of being skipped."
         type: boolean
         default: false
+      install-ffmpeg:
+        description: "Install ffmpeg before the tests, for tests that decode HEIC photos or video frames with it."
+        type: boolean
+        default: false
       fixtures-environment:
         description: "GitHub Environment of the caller that holds the secret FIXTURES_DEPLOY_KEY and limits the branches that may read it."
         type: string
@@ -135,6 +139,7 @@ jobs:
     uses: ./.github/workflows/kotlin-gradle-tier.yml
     secrets: inherit
     with:
+      install-ffmpeg: ${{ inputs.install-ffmpeg }}
       fixtures-repo: ${{ inputs.fixtures-repo }}
       require-fixtures: ${{ inputs.require-fixtures }}
       fixtures-environment: ${{ inputs.fixtures-environment }}
@@ -150,6 +155,7 @@ jobs:
     uses: ./.github/workflows/kotlin-gradle-tier.yml
     secrets: inherit
     with:
+      install-ffmpeg: ${{ inputs.install-ffmpeg }}
       fixtures-repo: ${{ inputs.fixtures-repo }}
       require-fixtures: ${{ inputs.require-fixtures }}
       fixtures-environment: ${{ inputs.fixtures-environment }}
@@ -164,6 +170,7 @@ jobs:
     uses: ./.github/workflows/kotlin-gradle-tier.yml
     secrets: inherit
     with:
+      install-ffmpeg: ${{ inputs.install-ffmpeg }}
       fixtures-repo: ${{ inputs.fixtures-repo }}
       require-fixtures: ${{ inputs.require-fixtures }}
       fixtures-environment: ${{ inputs.fixtures-environment }}
@@ -187,6 +194,7 @@ jobs:
     uses: ./.github/workflows/kotlin-coverage.yml
     secrets: inherit
     with:
+      install-ffmpeg: ${{ inputs.install-ffmpeg }}
       fixtures-repo: ${{ inputs.fixtures-repo }}
       require-fixtures: ${{ inputs.require-fixtures }}
       fixtures-environment: ${{ inputs.fixtures-environment }}
@@ -209,6 +217,7 @@ jobs:
     secrets: inherit
     with:
       fixtures-device-path: ${{ inputs.android-fixtures-device-path }}
+      install-ffmpeg: ${{ inputs.install-ffmpeg }}
       fixtures-repo: ${{ inputs.fixtures-repo }}
       require-fixtures: ${{ inputs.require-fixtures }}
       fixtures-environment: ${{ inputs.fixtures-environment }}
@@ -228,6 +237,7 @@ jobs:
     uses: ./.github/workflows/kotlin-env-desktop.yml
     secrets: inherit
     with:
+      install-ffmpeg: ${{ inputs.install-ffmpeg }}
       fixtures-repo: ${{ inputs.fixtures-repo }}
       require-fixtures: ${{ inputs.require-fixtures }}
       fixtures-environment: ${{ inputs.fixtures-environment }}
@@ -243,6 +253,7 @@ jobs:
     uses: ./.github/workflows/kotlin-env-desktop.yml
     secrets: inherit
     with:
+      install-ffmpeg: ${{ inputs.install-ffmpeg }}
       fixtures-repo: ${{ inputs.fixtures-repo }}
       require-fixtures: ${{ inputs.require-fixtures }}
       fixtures-environment: ${{ inputs.fixtures-environment }}
