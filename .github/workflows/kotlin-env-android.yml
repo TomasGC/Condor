@@ -55,10 +55,6 @@ on:
         description: "GitHub Environment of the caller that holds the secret FIXTURES_DEPLOY_KEY and limits the branches that may read it."
         type: string
         default: ''
-    secrets:
-      FIXTURES_DEPLOY_KEY:
-        description: "Read-only deploy key of fixtures-repo, held by the caller's fixtures-environment."
-        required: false
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
