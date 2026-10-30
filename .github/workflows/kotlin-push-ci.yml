@@ -133,6 +133,7 @@ jobs:
     needs: detect-changes
     if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true')
     uses: ./.github/workflows/kotlin-gradle-tier.yml
+    secrets: inherit
     with:
       fixtures-repo: ${{ inputs.fixtures-repo }}
       require-fixtures: ${{ inputs.require-fixtures }}
@@ -147,6 +148,7 @@ jobs:
     needs: [detect-changes, unit-tests]
     if: ${{ !failure() && !cancelled() && needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true') }}
     uses: ./.github/workflows/kotlin-gradle-tier.yml
+    secrets: inherit
     with:
       fixtures-repo: ${{ inputs.fixtures-repo }}
       require-fixtures: ${{ inputs.require-fixtures }}
@@ -160,6 +162,7 @@ jobs:
     needs: [detect-changes, integration-mock]
     if: ${{ !failure() && !cancelled() && needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true') }}
     uses: ./.github/workflows/kotlin-gradle-tier.yml
+    secrets: inherit
     with:
       fixtures-repo: ${{ inputs.fixtures-repo }}
       require-fixtures: ${{ inputs.require-fixtures }}
@@ -203,6 +206,7 @@ jobs:
     needs: [detect-changes, build-apk]
     if: ${{ !failure() && !cancelled() && needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true') && contains(fromJSON(inputs.app-environments), 'android') }}
     uses: ./.github/workflows/kotlin-env-android.yml
+    secrets: inherit
     with:
       fixtures-device-path: ${{ inputs.android-fixtures-device-path }}
       fixtures-repo: ${{ inputs.fixtures-repo }}
@@ -222,6 +226,7 @@ jobs:
     needs: [detect-changes, integration-real]
     if: ${{ !failure() && !cancelled() && needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true') && contains(fromJSON(inputs.app-environments), 'windows') }}
     uses: ./.github/workflows/kotlin-env-desktop.yml
+    secrets: inherit
     with:
       fixtures-repo: ${{ inputs.fixtures-repo }}
       require-fixtures: ${{ inputs.require-fixtures }}
@@ -236,6 +241,7 @@ jobs:
     needs: [detect-changes, integration-real]
     if: ${{ !failure() && !cancelled() && needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true') && contains(fromJSON(inputs.app-environments), 'linux') }}
     uses: ./.github/workflows/kotlin-env-desktop.yml
+    secrets: inherit
     with:
       fixtures-repo: ${{ inputs.fixtures-repo }}
       require-fixtures: ${{ inputs.require-fixtures }}
