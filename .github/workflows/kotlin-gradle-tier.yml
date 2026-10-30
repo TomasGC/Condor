@@ -20,6 +20,18 @@ on:
       retention-days:
         type: number
         default: 7
+      fixtures-repo:
+        description: "Private repository of test files, e.g. TomasGC/Osprey-fixtures. Empty: no fixtures, no step."
+        type: string
+        default: ''
+      require-fixtures:
+        description: "Set REQUIRE_FIXTURES=1, so a test that needs the fixtures fails instead of being skipped."
+        type: boolean
+        default: false
+      fixtures-environment:
+        description: "GitHub Environment of the caller that holds the secret FIXTURES_DEPLOY_KEY and limits the branches that may read it."
+        type: string
+        default: ''
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -29,6 +41,7 @@ jobs:
     name: Tests / ${{ matrix.task }}
     if: inputs.tasks != '[]'
     runs-on: ubuntu-latest
+    environment: ${{ inputs.fixtures-environment != '' && inputs.fixtures-environment || null }}
     strategy:
       fail-fast: false
       matrix:
@@ -49,6 +62,13 @@ jobs:
       - name: Pre-test setup
         if: inputs.pre-test-command != ''
         run: ${{ inputs.pre-test-command }}
+      - name: Fetch the private fixtures
+        if: inputs.fixtures-repo != ''
+        uses: TomasGC/condor/.github/actions/fetch-fixtures@feature/25-private-fixtures
+        with:
+          repository: ${{ inputs.fixtures-repo }}
+          deploy-key: ${{ secrets.FIXTURES_DEPLOY_KEY }}
+          require: ${{ inputs.require-fixtures }}
       - run: ./gradlew ${{ matrix.task }}
       - name: Artifact name
         id: name
