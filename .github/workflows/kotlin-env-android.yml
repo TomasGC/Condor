@@ -168,10 +168,10 @@ jobs:
 
       - name: Install ffmpeg
         if: inputs.install-ffmpeg
-        uses: TomasGC/condor/.github/actions/install-ffmpeg@feature/25-private-fixtures
+        uses: TomasGC/Condor/.github/actions/install-ffmpeg@main
       - name: Fetch the private fixtures
         if: inputs.fixtures-repo != ''
-        uses: TomasGC/condor/.github/actions/fetch-fixtures@feature/25-private-fixtures
+        uses: TomasGC/Condor/.github/actions/fetch-fixtures@main
         with:
           repository: ${{ inputs.fixtures-repo }}
           deploy-key: ${{ secrets.FIXTURES_DEPLOY_KEY }}
