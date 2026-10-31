@@ -99,6 +99,12 @@ e2e = E2E (android): adds both shards' JUnit XML into one summary; red if a shar
 
 **Savings vs baseline** (system image + emulator cache hit, both shards parallel): ~11min saved (~2min system image + ~4min cold boot × 2 shards + ~5min per half-suite).
 
+### 6. Private Fixtures (Optional)
+
+A project whose tests need files that must not be public sets `fixtures-repo`; with no input there is no step, no environment and no change. `.github/actions/fetch-fixtures` clones the repository over ssh with a read-only deploy key into the runner's temp folder (outside the workspace, so no `**/build/` upload glob can reach it), strips `.git` and exports `FIXTURES_DIR` (and `REQUIRE_FIXTURES=1` when asked); `.github/actions/install-ffmpeg` is the sibling for tests that decode with ffmpeg. Both run in the four jobs that run tests: `kotlin-gradle-tier`, `kotlin-coverage`, `kotlin-env-desktop` and `kotlin-env-android` (which also pushes the folder to the device and passes `requireFixtures=1`). Both actions are referenced as `TomasGC/Condor/...@main`, like `check-docs-only`, because `./` in a `uses:` of an action resolves in the caller's checkout.
+
+The key is a repository secret of the caller, passed by `secrets: inherit`: an Environment's secret does not reach a called workflow, because a job that calls one cannot declare an environment (measured on Osprey run 41132448779). The job-level `environment:` only gates which branches may run the job. The paths use forward slashes (`${RUNNER_TEMP//\\//}`): Git Bash on Windows eats the backslashes. `condor-lint.yml` runs `.github/scripts/check_fixtures_uploads.py`, which fails when a step uploads from the temp folder or anything called fixtures, and proves itself on a clean and a leaky fixture under `tests/fixtures/`.
+
 ### 6. Docs-Only Push Detection
 
 Both `kotlin-detect-changes.yml` and `python-detect-changes.yml` output a `docs-only` flag. When true, all downstream jobs are skipped.
@@ -197,7 +203,7 @@ with no marked tests would stay green while running nothing.
 
 ### Condor Tests Itself
 
-`condor-lint.yml` (actionlint + shellcheck, every push), `condor-test-python.yml` (the Python pipeline on fixture
+`condor-lint.yml` (actionlint + shellcheck and the no-upload-from-fixtures check, every push), `condor-test-python.yml` (the Python pipeline on fixture
 projects under `tests/fixtures/`, every push) and `condor-test-pr.yml` (the PR pipeline on Condor's own PRs). A
 reusable workflow cannot be asserted to fail from its caller (`continue-on-error` is not allowed on a `uses:` job), so
 the negative case runs the guard with `fail-on-violation: false` and asserts its outputs. The Kotlin pipelines have no
