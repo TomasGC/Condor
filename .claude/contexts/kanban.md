@@ -4,6 +4,17 @@ Track of work sessions and completed tasks linked to consuming project issues.
 
 ---
 
+2026-10-31 - [#25] Let the Kotlin pipelines read a private fixtures repository
+- `kotlin-push-ci.yml` takes `fixtures-repo`, `require-fixtures`, `fixtures-environment`, `install-ffmpeg` and `android-fixtures-device-path`; with none of them nothing changes. `.github/actions/fetch-fixtures` clones the private repository with a read-only deploy key into the runner's temp folder and exports `FIXTURES_DIR` (and `REQUIRE_FIXTURES=1`); the android environment pushes it to the emulator and passes `requireFixtures=1`; `.github/actions/install-ffmpeg` installs ffmpeg (apt on Linux, choco on Windows) for tests that decode with it
+- Measured on Osprey: an Environment's secret does not reach a called workflow (a calling job cannot declare an environment), so the key is a repository secret passed by `secrets: inherit` and the Environment only gates the branches; Git Bash on Windows eats the backslashes of `RUNNER_TEMP`, so the paths use forward slashes
+- `condor-lint.yml` fails when a step uploads from the temp folder or anything called fixtures, and proves itself on a clean and a leaky fixture; README documents the inputs and the setup
+- Verified on Osprey Push-CI pinned to the branch: key masked in the log, clone and `FIXTURES_DIR` set, `E2E (windows)` 7 passed, `E2E (linux)` 7 passed, `E2E (android)` 30 passed with the real-photo tests run (not skipped) on the API 30 emulator; no input: the pipeline ran as before
+tags: #kotlin #fixtures #security #ffmpeg
+Ref: https://github.com/TomasGC/Osprey/issues/76
+Commits: 1ad64a9, 4390707, e11b7af, 1b54fe8
+
+---
+
 2026-10-29 - [#23] Declare app environments, one workflow file per environment
 - `kotlin-push-ci.yml` takes `app-environments` (JSON list: android, windows, linux) instead of `instrumented-task`; each environment gets one end-to-end check named `E2E (<environment>)`, in parallel after the integration-real tier; `android-e2e-task` and `desktop-e2e-task` override the convention; the APK build runs only when android is listed; an unknown name fails the run at the start
 - `kotlin-env-android.yml` (the old instrumented file; the 2 emulator shards are kept, plus the `E2E (android)` job that sums them) and `kotlin-env-desktop.yml` (one JVM job with an `os` input: windows-latest or ubuntu-latest); each check writes passed/failed/skipped/test time to its job summary and log, and is red when it finds no results

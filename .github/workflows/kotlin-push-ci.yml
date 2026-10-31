@@ -71,9 +71,29 @@ on:
         description: "App name used for coverage badge gist filename"
         type: string
         default: 'app'
+      android-fixtures-device-path:
+        description: "Device folder the fixtures are pushed to before the android end-to-end tests."
+        type: string
+        default: ''
       retention-days:
         type: number
         default: 7
+      fixtures-repo:
+        description: "Private repository of test files, e.g. TomasGC/Osprey-fixtures. Empty: no fixtures, no step."
+        type: string
+        default: ''
+      require-fixtures:
+        description: "Set REQUIRE_FIXTURES=1, so a test that needs the fixtures fails instead of being skipped."
+        type: boolean
+        default: false
+      install-ffmpeg:
+        description: "Install ffmpeg before the tests, for tests that decode HEIC photos or video frames with it."
+        type: boolean
+        default: false
+      fixtures-environment:
+        description: "GitHub Environment of the caller that holds the secret FIXTURES_DEPLOY_KEY and limits the branches that may read it."
+        type: string
+        default: ''
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -117,7 +137,12 @@ jobs:
     needs: detect-changes
     if: needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true')
     uses: ./.github/workflows/kotlin-gradle-tier.yml
+    secrets: inherit
     with:
+      install-ffmpeg: ${{ inputs.install-ffmpeg }}
+      fixtures-repo: ${{ inputs.fixtures-repo }}
+      require-fixtures: ${{ inputs.require-fixtures }}
+      fixtures-environment: ${{ inputs.fixtures-environment }}
       tasks: ${{ inputs.unit-tasks }}
       java-version: ${{ inputs.java-version }}
       pre-test-command: ${{ inputs.pre-test-command }}
@@ -128,7 +153,12 @@ jobs:
     needs: [detect-changes, unit-tests]
     if: ${{ !failure() && !cancelled() && needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true') }}
     uses: ./.github/workflows/kotlin-gradle-tier.yml
+    secrets: inherit
     with:
+      install-ffmpeg: ${{ inputs.install-ffmpeg }}
+      fixtures-repo: ${{ inputs.fixtures-repo }}
+      require-fixtures: ${{ inputs.require-fixtures }}
+      fixtures-environment: ${{ inputs.fixtures-environment }}
       tasks: ${{ inputs.integration-mock-tasks }}
       java-version: ${{ inputs.java-version }}
       pre-test-command: ${{ inputs.pre-test-command }}
@@ -138,7 +168,12 @@ jobs:
     needs: [detect-changes, integration-mock]
     if: ${{ !failure() && !cancelled() && needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true') }}
     uses: ./.github/workflows/kotlin-gradle-tier.yml
+    secrets: inherit
     with:
+      install-ffmpeg: ${{ inputs.install-ffmpeg }}
+      fixtures-repo: ${{ inputs.fixtures-repo }}
+      require-fixtures: ${{ inputs.require-fixtures }}
+      fixtures-environment: ${{ inputs.fixtures-environment }}
       tasks: ${{ inputs.integration-real-tasks }}
       java-version: ${{ inputs.java-version }}
       pre-test-command: ${{ inputs.pre-test-command }}
@@ -159,6 +194,10 @@ jobs:
     uses: ./.github/workflows/kotlin-coverage.yml
     secrets: inherit
     with:
+      install-ffmpeg: ${{ inputs.install-ffmpeg }}
+      fixtures-repo: ${{ inputs.fixtures-repo }}
+      require-fixtures: ${{ inputs.require-fixtures }}
+      fixtures-environment: ${{ inputs.fixtures-environment }}
       java-version: ${{ inputs.java-version }}
       python-version: ${{ inputs.python-version }}
       pre-test-command: ${{ inputs.pre-test-command }}
@@ -175,7 +214,13 @@ jobs:
     needs: [detect-changes, build-apk]
     if: ${{ !failure() && !cancelled() && needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true') && contains(fromJSON(inputs.app-environments), 'android') }}
     uses: ./.github/workflows/kotlin-env-android.yml
+    secrets: inherit
     with:
+      fixtures-device-path: ${{ inputs.android-fixtures-device-path }}
+      install-ffmpeg: ${{ inputs.install-ffmpeg }}
+      fixtures-repo: ${{ inputs.fixtures-repo }}
+      require-fixtures: ${{ inputs.require-fixtures }}
+      fixtures-environment: ${{ inputs.fixtures-environment }}
       java-version: ${{ inputs.java-version }}
       python-version: ${{ inputs.python-version }}
       avd-name: ${{ inputs.avd-name }}
@@ -190,7 +235,12 @@ jobs:
     needs: [detect-changes, integration-real]
     if: ${{ !failure() && !cancelled() && needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true') && contains(fromJSON(inputs.app-environments), 'windows') }}
     uses: ./.github/workflows/kotlin-env-desktop.yml
+    secrets: inherit
     with:
+      install-ffmpeg: ${{ inputs.install-ffmpeg }}
+      fixtures-repo: ${{ inputs.fixtures-repo }}
+      require-fixtures: ${{ inputs.require-fixtures }}
+      fixtures-environment: ${{ inputs.fixtures-environment }}
       os: windows
       task: ${{ inputs.desktop-e2e-task }}
       java-version: ${{ inputs.java-version }}
@@ -201,7 +251,12 @@ jobs:
     needs: [detect-changes, integration-real]
     if: ${{ !failure() && !cancelled() && needs.detect-changes.outputs.docs-only != 'true' && (inputs.skip-on-no-changes == false || needs.detect-changes.outputs.kotlin == 'true') && contains(fromJSON(inputs.app-environments), 'linux') }}
     uses: ./.github/workflows/kotlin-env-desktop.yml
+    secrets: inherit
     with:
+      install-ffmpeg: ${{ inputs.install-ffmpeg }}
+      fixtures-repo: ${{ inputs.fixtures-repo }}
+      require-fixtures: ${{ inputs.require-fixtures }}
+      fixtures-environment: ${{ inputs.fixtures-environment }}
       os: linux
       task: ${{ inputs.desktop-e2e-task }}
       java-version: ${{ inputs.java-version }}

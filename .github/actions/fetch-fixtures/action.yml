@@ -1,0 +1,42 @@
+name: Fetch the private fixtures
+description: >
+  Clones a private repository of test files with a read-only deploy key and tells the tests where it is
+  (FIXTURES_DIR). The key is written to a temporary file for the clone and removed, never echoed.
+
+inputs:
+  repository:
+    description: "Owner/name of the private fixtures repository."
+    required: true
+  deploy-key:
+    description: "Private half of a read-only deploy key of that repository."
+    required: true
+  require:
+    description: "true: also set REQUIRE_FIXTURES=1, so a test that needs the fixtures fails instead of being skipped."
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    - name: Clone the fixtures
+      shell: bash
+      env:
+        REPOSITORY: ${{ inputs.repository }}
+        DEPLOY_KEY: ${{ inputs.deploy-key }}
+        REQUIRE: ${{ inputs.require }}
+      run: |
+        if [ -z "$DEPLOY_KEY" ]; then
+          echo "::error::The fixtures deploy key is empty: the job needs the GitHub Environment that holds it, on a branch it allows."
+          exit 1
+        fi
+        # Forward slashes: Git Bash on Windows would eat the backslashes of RUNNER_TEMP, and ssh and Java accept both.
+        temp="${RUNNER_TEMP//\\//}"
+        key="$temp/fixtures-deploy-key"
+        target="$temp/fixtures"
+        (umask 077; printf '%s\n' "$DEPLOY_KEY" > "$key")
+        trap 'rm -f "$key"' EXIT
+        GIT_SSH_COMMAND="ssh -i $key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
+          git clone --quiet --depth 1 "git@github.com:$REPOSITORY.git" "$target"
+        rm -rf "$target/.git"
+        echo "FIXTURES_DIR=$target" >> "$GITHUB_ENV"
+        if [ "$REQUIRE" = "true" ]; then echo "REQUIRE_FIXTURES=1" >> "$GITHUB_ENV"; fi
+        echo "Fixtures cloned from $REPOSITORY"

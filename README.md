@@ -184,6 +184,11 @@ would run it, or when nothing is collected at all.
 | `pre-test-command` | string | `''` | Command to run before each JVM test job (e.g. generate test archives) |
 | `archives-local-dir` | string | `''` | Local directory with archives to push to device |
 | `device-archives-path` | string | `''` | Device path where archives are pushed |
+| `install-ffmpeg` | boolean | `false` | Install ffmpeg on the test jobs (apt on Linux, choco on Windows), for tests that decode HEIC photos or video frames with it |
+| `fixtures-repo` | string | `''` | Private repository of test files, e.g. `TomasGC/Osprey-fixtures`; empty means no fixtures and no step (see [Private fixtures](#private-fixtures)) |
+| `require-fixtures` | boolean | `false` | Set `REQUIRE_FIXTURES=1`, so a test that needs the fixtures fails instead of being skipped |
+| `fixtures-environment` | string | `''` | GitHub Environment of the caller whose branch rules gate the jobs that read the fixtures |
+| `android-fixtures-device-path` | string | `''` | Device folder the fixtures are pushed to before the android end-to-end tests; the tests get `requireFixtures=1` when `require-fixtures` is set |
 | `coverage-threshold` | number | `80` | Minimum coverage percentage |
 | `apk-size-limit-mb` | number | `50` | Maximum APK size in MB |
 | `app-name` | string | `app` | App name for coverage badge and artifact naming |
@@ -204,6 +209,36 @@ A project says where its app runs, and the pipeline works out the rest:
 - **The APK build runs only when `android` is listed.** Coverage stays one merged number from the unit and integration tiers; the end-to-end checks are not part of it and have no threshold.
 - **Adding an environment** is one new `kotlin-env-<kind>.yml` and one stanza in `kotlin-push-ci.yml` (`uses:` cannot take an expression); no project changes.
 - **Breaking change:** `instrumented-task` is gone. Replace `instrumented-task: X` with `app-environments: '["android"]'` and, when X is not the default, `android-e2e-task: X`.
+
+### Private fixtures
+
+A project can need test files that must not be public (real photos). They live in a private repository and the
+pipeline reads them with a read-only deploy key; nothing changes for a project that sets no `fixtures-repo`.
+
+```yaml
+    secrets: inherit
+    with:
+      fixtures-repo: TomasGC/Osprey-fixtures
+      require-fixtures: true
+      fixtures-environment: fixtures
+      android-fixtures-device-path: /data/local/tmp/osprey-fixtures
+      install-ffmpeg: true
+```
+
+- **Setup:** a read-only deploy key on the fixtures repository; its private half is a repository secret named
+  `FIXTURES_DEPLOY_KEY` in the calling project, passed down by `secrets: inherit`. An environment secret does not
+  reach a called workflow, so the Environment named by `fixtures-environment` only gates the jobs: its branch rules
+  (for example `feature/**`, `bugfix/**`, `main`) decide which branches may run them.
+- **What the jobs get:** the repository is cloned (without its history) into the runner's temp folder and the path
+  is exposed to the Gradle tiers as `FIXTURES_DIR`, plus `REQUIRE_FIXTURES=1` when asked. The android environment also
+  pushes the folder to `android-fixtures-device-path` and passes `requireFixtures=1` to the instrumented tests.
+- **Forks:** a pull request from a fork gets no secrets, so the jobs fail fast with a message on the missing key; a
+  project that wants forks to pass leaves `require-fixtures` off and has its tests skip without the folder.
+- **Nothing derived from the files leaves the runner:** artifacts are test result files and coverage only. The key is
+  written to a temporary file for the clone and removed. `condor-lint.yml` fails when any step uploads from the
+  fixtures folder or the runner's temp folder.
+- **Replacing the key:** generate a pair, add the public half as a deploy key, delete the old one, and set the secret
+  again; nothing else changes.
 
 ### `kotlin-cd.yml`
 
