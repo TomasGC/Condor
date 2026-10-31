@@ -28,8 +28,10 @@ runs:
           echo "::error::The fixtures deploy key is empty: the job needs the GitHub Environment that holds it, on a branch it allows."
           exit 1
         fi
-        key="$RUNNER_TEMP/fixtures-deploy-key"
-        target="$RUNNER_TEMP/fixtures"
+        # Forward slashes: Git Bash on Windows would eat the backslashes of RUNNER_TEMP, and ssh and Java accept both.
+        temp="${RUNNER_TEMP//\\//}"
+        key="$temp/fixtures-deploy-key"
+        target="$temp/fixtures"
         (umask 077; printf '%s\n' "$DEPLOY_KEY" > "$key")
         trap 'rm -f "$key"' EXIT
         GIT_SSH_COMMAND="ssh -i $key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
