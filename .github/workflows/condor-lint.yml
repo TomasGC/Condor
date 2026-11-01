@@ -2,6 +2,7 @@ name: Condor / Lint
 
 # Condor's own static check: every workflow is parsed and its expressions and shell scripts checked, so a broken
 # workflow fails here instead of in a consumer's CI. shellcheck runs from inside actionlint, warnings and up.
+# A second check keeps private fixtures out of every uploaded artifact (Condor#25).
 
 on:
   push:
@@ -23,3 +24,20 @@ jobs:
         run: |
           docker run --rm -e SHELLCHECK_OPTS="-S warning" -v "$PWD:/repo" -w /repo \
             rhysd/actionlint:1.7.12 -color
+
+  fixtures-uploads:
+    name: No upload from the fixtures folder
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install pyyaml==6.0.2
+      - name: Condor's own workflows and actions
+        run: python .github/scripts/check_fixtures_uploads.py .github
+      - name: The check passes a folder that uploads results only
+        run: python .github/scripts/check_fixtures_uploads.py tests/fixtures/uploads-clean
+      - name: The check reports a step that would upload the fixtures
+        run: |
+          if python .github/scripts/check_fixtures_uploads.py tests/fixtures/uploads-leaky; then
+            echo "::error::The check did not report an upload from the fixtures folder"
+            exit 1
+          fi

@@ -35,6 +35,22 @@ on:
       retention-days:
         type: number
         default: 7
+      fixtures-repo:
+        description: "Private repository of test files, e.g. TomasGC/Osprey-fixtures. Empty: no fixtures, no step."
+        type: string
+        default: ''
+      require-fixtures:
+        description: "Set REQUIRE_FIXTURES=1, so a test that needs the fixtures fails instead of being skipped."
+        type: boolean
+        default: false
+      install-ffmpeg:
+        description: "Install ffmpeg before the tests, for tests that decode HEIC photos or video frames with it."
+        type: boolean
+        default: false
+      fixtures-environment:
+        description: "GitHub Environment of the caller that holds the secret FIXTURES_DEPLOY_KEY and limits the branches that may read it."
+        type: string
+        default: ''
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -43,6 +59,7 @@ jobs:
   coverage:
     name: Coverage
     runs-on: ubuntu-latest
+    environment: ${{ inputs.fixtures-environment != '' && inputs.fixtures-environment || null }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -52,6 +69,17 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
         with:
           cache-read-only: false
+
+      - name: Install ffmpeg
+        if: inputs.install-ffmpeg
+        uses: TomasGC/Condor/.github/actions/install-ffmpeg@main
+      - name: Fetch the private fixtures
+        if: inputs.fixtures-repo != ''
+        uses: TomasGC/Condor/.github/actions/fetch-fixtures@main
+        with:
+          repository: ${{ inputs.fixtures-repo }}
+          deploy-key: ${{ secrets.FIXTURES_DEPLOY_KEY }}
+          require: ${{ inputs.require-fixtures }}
 
       # Re-runs the JVM test tiers here, in one Gradle invocation, instead of downloading each tier
       # job's binary report: a cross-module .ic file (e.g. :core's) needs to land back at its own

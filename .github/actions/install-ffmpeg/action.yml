@@ -1,0 +1,19 @@
+name: Install ffmpeg
+description: >
+  Makes sure ffmpeg is on the PATH of the job, for tests that decode HEIC photos or video frames with it. Does nothing
+  when it is already there.
+
+runs:
+  using: composite
+  steps:
+    - name: Install ffmpeg
+      shell: bash
+      run: |
+        if ! command -v ffmpeg >/dev/null 2>&1; then
+          case "$RUNNER_OS" in
+            Linux) sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg ;;
+            Windows) choco install ffmpeg -y --no-progress ;;
+            *) echo "::error::No ffmpeg installer for $RUNNER_OS"; exit 1 ;;
+          esac
+        fi
+        ffmpeg -version | head -1
