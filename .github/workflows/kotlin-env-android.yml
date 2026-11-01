@@ -40,6 +40,10 @@ on:
         description: "Device folder the fixtures are pushed to, e.g. /data/local/tmp/osprey-fixtures. Empty: they are not pushed."
         type: string
         default: ''
+      instrumentation-arguments:
+        description: "Space-separated key=value pairs handed to the instrumented tests as runner arguments, e.g. 'grantViaPicker=1'."
+        type: string
+        default: ''
       retention-days:
         type: number
         default: 7
@@ -191,10 +195,19 @@ jobs:
           adb shell appops get ${{ inputs.manage-external-storage-package }} MANAGE_EXTERNAL_STORAGE
 
       - name: Run instrumented tests (shard ${{ matrix.shard-index }})
+        env:
+          INSTRUMENTATION_ARGUMENTS: ${{ inputs.instrumentation-arguments }}
         run: |
+          read -ra pairs <<< "$INSTRUMENTATION_ARGUMENTS"
+          args=()
+          for pair in "${pairs[@]}"; do
+            args+=("-Pandroid.testInstrumentationRunnerArguments.${pair}")
+          done
           ./gradlew ${{ inputs.test-task }} \
             -Pandroid.testInstrumentationRunnerArguments.numShards=2 \
-            "-Pandroid.testInstrumentationRunnerArguments.shardIndex=${{ matrix.shard-index }}"             ${{ inputs.require-fixtures && '-Pandroid.testInstrumentationRunnerArguments.requireFixtures=1' || '' }}
+            "-Pandroid.testInstrumentationRunnerArguments.shardIndex=${{ matrix.shard-index }}" \
+            ${{ inputs.require-fixtures && '-Pandroid.testInstrumentationRunnerArguments.requireFixtures=1' || '' }} \
+            "${args[@]}"
 
       - if: always()
         uses: actions/upload-artifact@v4

@@ -189,6 +189,7 @@ would run it, or when nothing is collected at all.
 | `require-fixtures` | boolean | `false` | Set `REQUIRE_FIXTURES=1`, so a test that needs the fixtures fails instead of being skipped |
 | `fixtures-environment` | string | `''` | GitHub Environment of the caller whose branch rules gate the jobs that read the fixtures |
 | `android-fixtures-device-path` | string | `''` | Device folder the fixtures are pushed to before the android end-to-end tests; the tests get `requireFixtures=1` when `require-fixtures` is set |
+| `android-instrumentation-arguments` | string | `''` | Space-separated `key=value` pairs handed to the android end-to-end tests as instrumentation arguments, e.g. `grantViaPicker=1` |
 | `coverage-threshold` | number | `80` | Minimum coverage percentage |
 | `apk-size-limit-mb` | number | `50` | Maximum APK size in MB |
 | `app-name` | string | `app` | App name for coverage badge and artifact naming |

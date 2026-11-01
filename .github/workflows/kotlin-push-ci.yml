@@ -75,6 +75,10 @@ on:
         description: "Device folder the fixtures are pushed to before the android end-to-end tests."
         type: string
         default: ''
+      android-instrumentation-arguments:
+        description: "Space-separated key=value pairs handed to the android end-to-end tests as instrumentation arguments, e.g. 'grantViaPicker=1'."
+        type: string
+        default: ''
       retention-days:
         type: number
         default: 7
@@ -217,6 +221,7 @@ jobs:
     secrets: inherit
     with:
       fixtures-device-path: ${{ inputs.android-fixtures-device-path }}
+      instrumentation-arguments: ${{ inputs.android-instrumentation-arguments }}
       install-ffmpeg: ${{ inputs.install-ffmpeg }}
       fixtures-repo: ${{ inputs.fixtures-repo }}
       require-fixtures: ${{ inputs.require-fixtures }}
