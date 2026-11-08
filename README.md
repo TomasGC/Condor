@@ -119,6 +119,37 @@ file is flat and named `<language>-<stage>.yml`. Pin a caller to a commit SHA (`
 
 ---
 
+## Versioning and compatibility
+
+Every project uses Condor, so a change must never break a caller that did not ask for it. These rules apply
+from `v1` on.
+
+- **Additive only.** A change adds an input with a default, an output, a workflow or an action. It never
+  removes or renames an input, changes an input's type, or changes a default. A change that cannot be
+  additive waits for the next major version (`v2`).
+- **Defaults are frozen.** A project that sets nothing runs the way it did on the day it adopted the version.
+- **Deprecation.** An input that is going away is marked "Deprecated: use X" in this README and in its
+  description, keeps working for at least one minor version, and is removed only in the next major version.
+- **Fixes.** A bug fix changes behaviour only where the old behaviour was wrong (a gate that passed on a
+  missing report), and the release notes say so.
+
+**Pinning.** `@v1` gets every additive change and no breaking one. `@v1.4.0` or a release commit never
+changes. `@main` is the development line and carries no guarantee; until the first tag exists every caller
+is on `@main`.
+
+**A release** is cut from a clean `main` that equals `origin/main`:
+
+    python .github/scripts/release.py 1.4.0 --push
+
+It makes a commit that is not on `main`, in which every internal reference
+(`TomasGC/Condor/.github/...@main`) points at `@v1.4.0`, tags it `v1.4.0`, and moves `v1` to it unless a newer
+release of the same major version exists. A caller on `@v1` therefore runs the workflows and actions of one
+release, and nothing floats on `main`. The script refuses a dirty tree, a `main` that differs from origin, a
+tag that already exists and a reference to a branch under test; `--dry-run` counts the files to rewrite and
+changes nothing.
+
+---
+
 ## Available Workflows
 
 ### Common
@@ -339,6 +370,7 @@ Condor runs its own pipelines on itself:
 | `condor-lint.yml` | every push | actionlint + shellcheck (warnings and up) on every workflow |
 | `condor-test-python.yml` | every push | `python-push-ci.yml` on `tests/fixtures/python-project` (all gates, four tiers, coverage; a `local_only` test fails if it ever runs) and the collection guard on `tests/fixtures/python-project-unmarked` |
 | `condor-test-pr.yml` | Condor's PRs | `common-pr-ci.yml` on the PR itself, called like the caller template: title (`#N: type: description`), context files, secret scan |
+| `condor-test-scripts.yml` | every push | pytest of `.github/scripts/` (unit and integration_real, real git on a temporary remote) |
 
 The Kotlin pipelines are not self-tested yet: that needs an Android fixture project, Gradle and an emulator.
 

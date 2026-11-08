@@ -1,0 +1,26 @@
+name: Condor / Test Scripts
+
+# Condor's own scripts (.github/scripts/) tested like a project's code: the unit and integration_real tiers of
+# tests/, on every push.
+
+on:
+  push:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: condor-test-scripts-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    name: pytest (unit, integration_real)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pytest==9.0.3
+      - run: python -m pytest -q
