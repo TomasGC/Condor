@@ -1,0 +1,29 @@
+name: Validate inputs
+description: >
+  Checks the inputs of a Condor module against its spec (specs/<module>.json) before anything uses them. A bad value
+  fails here with a message naming the input and the rule, before a single Gradle task or shell step runs. Adding a
+  module or an input is a spec change; this action does not change.
+
+inputs:
+  module:
+    description: "Name of the module whose spec to apply, e.g. kotlin-coverage."
+    required: true
+  values:
+    description: "The caller's inputs as a JSON object: pass ${{ toJSON(inputs) }}. Inputs the spec does not name are ignored."
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Validate the inputs
+      shell: bash
+      env:
+        CONDOR_MODULE: ${{ inputs.module }}
+        CONDOR_VALUES: ${{ inputs.values }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        # Values reach the script through the environment only, never inside the script text.
+        venv="$RUNNER_TEMP/condor-validate-inputs"
+        python3 -m venv "$venv"
+        "$venv/bin/python" -m pip install --quiet --disable-pip-version-check -r "$ACTION_PATH/requirements.txt"
+        "$venv/bin/python" "$ACTION_PATH/validate.py"

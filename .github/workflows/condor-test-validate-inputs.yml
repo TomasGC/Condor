@@ -1,0 +1,67 @@
+name: Condor / Test Validate Inputs
+
+# The validate-inputs action run as a caller runs it, from Condor's own checkout: valid values pass, and every
+# kind of bad value fails the step (continue-on-error, then the outcome is asserted) before anything else would run.
+# The rules themselves are tested case by case in tests/unit; this proves the action wiring on a real runner.
+
+on:
+  push:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: condor-test-validate-inputs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  accepts:
+    name: Accepts ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: the defaults
+            values: '{"coverage-report-tasks":"[\"koverXmlReportDebug\", \"koverHtmlReportDebug\"]","coverage-xml-path":"app/build/reports/kover/reportDebug.xml","coverage-artifact-path":"app/build/reports/kover/"}'
+          - name: a merged variant, with other inputs around it
+            values: '{"coverage-report-tasks":"[\":app:koverXmlReportMerged\"]","coverage-xml-path":"app/build/reports/kover/reportMerged.xml","coverage-artifact-path":"app/build/reports/kover/","coverage-threshold":80,"java-version":"21"}'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/validate-inputs
+        with:
+          module: kotlin-coverage
+          values: ${{ matrix.values }}
+
+  rejects:
+    name: Rejects ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: an option instead of a task
+            values: '{"coverage-report-tasks":"[\"--init-script=/tmp/x.gradle\"]","coverage-xml-path":"a.xml","coverage-artifact-path":"a/"}'
+          - name: shell syntax in a task
+            values: '{"coverage-report-tasks":"[\"a;b\"]","coverage-xml-path":"a.xml","coverage-artifact-path":"a/"}'
+          - name: an empty task list
+            values: '{"coverage-report-tasks":"[]","coverage-xml-path":"a.xml","coverage-artifact-path":"a/"}'
+          - name: a path that leaves the workspace
+            values: '{"coverage-report-tasks":"[\"a\"]","coverage-xml-path":"../a.xml","coverage-artifact-path":"a/"}'
+          - name: an absolute artifact path
+            values: '{"coverage-report-tasks":"[\"a\"]","coverage-xml-path":"a.xml","coverage-artifact-path":"/etc/"}'
+          - name: a missing input
+            values: '{"coverage-report-tasks":"[\"a\"]","coverage-xml-path":"a.xml"}'
+    steps:
+      - uses: actions/checkout@v4
+      - id: validate
+        continue-on-error: true
+        uses: ./.github/actions/validate-inputs
+        with:
+          module: kotlin-coverage
+          values: ${{ matrix.values }}
+      - name: The bad value must have been refused
+        if: steps.validate.outcome != 'failure'
+        run: |
+          echo "::error::The validator accepted: ${{ matrix.name }}"
+          exit 1

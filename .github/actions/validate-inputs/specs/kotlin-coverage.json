@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "kotlin-coverage",
+  "description": "Inputs of kotlin-coverage.yml (and the same inputs of kotlin-push-ci.yml) that reach a shell or a file path.",
+  "type": "object",
+  "required": ["coverage-report-tasks", "coverage-xml-path", "coverage-artifact-path"],
+  "properties": {
+    "coverage-report-tasks": {
+      "x-rule": "a JSON array of one or more Gradle task names (letters, digits and _ . : -, not starting with '-'), e.g. [\"koverXmlReportDebug\"]",
+      "type": "string",
+      "contentMediaType": "application/json",
+      "contentSchema": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 10,
+        "items": {
+          "type": "string",
+          "maxLength": 100,
+          "pattern": "^(?!-):?[A-Za-z0-9_.:-]+$"
+        }
+      }
+    },
+    "coverage-xml-path": {
+      "x-rule": "a relative path made of letters, digits and _ . / - (no '..', not starting with '/' or '-')",
+      "type": "string",
+      "maxLength": 200,
+      "pattern": "^(?![-/])(?!.*\\.\\.)(?!.*//)[A-Za-z0-9_./-]+$"
+    },
+    "coverage-artifact-path": {
+      "x-rule": "a relative path made of letters, digits and _ . / - (no '..', not starting with '/' or '-')",
+      "type": "string",
+      "maxLength": 200,
+      "pattern": "^(?![-/])(?!.*\\.\\.)(?!.*//)[A-Za-z0-9_./-]+$"
+    }
+  }
+}
