@@ -1,7 +1,7 @@
 name: Condor / Test Scripts
 
-# Condor's own scripts (.github/scripts/) tested like a project's code: the unit and integration_real tiers of
-# tests/, on every push.
+# Condor's own scripts (.github/scripts/) tested like a project's code: the unit, integration_mock and integration_real
+# tiers of tests/, on every push.
 
 on:
   push:
@@ -15,12 +15,16 @@ concurrency:
 
 jobs:
   pytest:
-    name: pytest (unit, integration_real)
+    name: pytest (unit, integration_mock, integration_real)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
       - run: pip install pytest==9.0.3 pyyaml==6.0.2 -r .github/actions/validate-inputs/requirements.txt
       - run: python -m pytest -q

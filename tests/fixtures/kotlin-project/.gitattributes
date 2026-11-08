@@ -1,0 +1,4 @@
+# The wrapper script must keep LF on every checkout (a CR in its shebang breaks it on Linux); the batch file keeps CRLF.
+gradlew text eol=lf
+*.bat text eol=crlf
+*.jar binary
