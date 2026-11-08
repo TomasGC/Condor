@@ -98,6 +98,18 @@ on:
         description: "GitHub Environment of the caller that holds the secret FIXTURES_DEPLOY_KEY and limits the branches that may read it."
         type: string
         default: ''
+      coverage-report-tasks:
+        description: 'JSON array of Gradle tasks that write the coverage report, run in order, all required. Leave the HTML task out to skip the HTML report.'
+        type: string
+        default: '["koverXmlReportDebug", "koverHtmlReportDebug"]'
+      coverage-xml-path:
+        description: "XML report the threshold is read from. Kover names it report<Variant>.xml after the variant."
+        type: string
+        default: 'app/build/reports/kover/reportDebug.xml'
+      coverage-artifact-path:
+        description: "Folder uploaded as the coverage-report artifact."
+        type: string
+        default: 'app/build/reports/kover/'
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -117,6 +129,11 @@ jobs:
             echo "::error::Unknown app environment(s) $unknown. Known: android, windows, linux."
             exit 1
           fi
+      - name: Validate the coverage inputs
+        uses: TomasGC/Condor/.github/actions/validate-inputs@main
+        with:
+          module: kotlin-coverage
+          values: ${{ toJSON(inputs) }}
 
   # Lightweight, drives skip-on-no-changes gating below
   detect-changes:
@@ -211,6 +228,9 @@ jobs:
       unit-tasks: ${{ inputs.unit-tasks }}
       integration-mock-tasks: ${{ inputs.integration-mock-tasks }}
       integration-real-tasks: ${{ inputs.integration-real-tasks }}
+      coverage-report-tasks: ${{ inputs.coverage-report-tasks }}
+      coverage-xml-path: ${{ inputs.coverage-xml-path }}
+      coverage-artifact-path: ${{ inputs.coverage-artifact-path }}
 
   # One stanza per known environment: `uses:` cannot take an expression, so a new environment is one file and one
   # stanza here, and no project changes. The environments run in parallel after the integration-real tier.

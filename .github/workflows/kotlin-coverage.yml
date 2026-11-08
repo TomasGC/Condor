@@ -51,6 +51,18 @@ on:
         description: "GitHub Environment of the caller that holds the secret FIXTURES_DEPLOY_KEY and limits the branches that may read it."
         type: string
         default: ''
+      coverage-report-tasks:
+        description: 'JSON array of Gradle tasks that write the coverage report, run in order, all required. Leave the HTML task out to skip the HTML report.'
+        type: string
+        default: '["koverXmlReportDebug", "koverHtmlReportDebug"]'
+      coverage-xml-path:
+        description: "XML report the threshold is read from. Kover names it report<Variant>.xml after the variant."
+        type: string
+        default: 'app/build/reports/kover/reportDebug.xml'
+      coverage-artifact-path:
+        description: "Folder uploaded as the coverage-report artifact."
+        type: string
+        default: 'app/build/reports/kover/'
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -59,8 +71,15 @@ jobs:
   coverage:
     name: Coverage
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     environment: ${{ inputs.fixtures-environment != '' && inputs.fixtures-environment || null }}
     steps:
+      - name: Validate the coverage inputs
+        uses: TomasGC/Condor/.github/actions/validate-inputs@main
+        with:
+          module: kotlin-coverage
+          values: ${{ toJSON(inputs) }}
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
@@ -106,44 +125,23 @@ jobs:
         if: inputs.pre-test-command != ''
         run: ${{ inputs.pre-test-command }}
 
-      - name: Generate merged Kover report
-        run: |
-          ./gradlew koverXmlReportDebug
-          ./gradlew koverHtmlReportDebug
+      - name: Generate the coverage report
+        uses: TomasGC/Condor/.github/actions/run-gradle-tasks@main
+        with:
+          tasks: ${{ inputs.coverage-report-tasks }}
 
       - name: Verify coverage threshold
         id: coverage
-        run: |
-          XML_REPORT="app/build/reports/kover/reportDebug.xml"
-          if [ ! -f "$XML_REPORT" ]; then
-            echo "ERROR: Coverage report not found at $XML_REPORT"
-            exit 1
-          fi
-          # The report element's own LINE counter (the project total) is the last one in the file:
-          # JaCoCo/Kover XML nests package/class/method counters inside it, so the outer report's
-          # rolled-up counter is written after all of them, not before.
-          MISSED=$(grep '<counter type="LINE"' "$XML_REPORT" | sed -n 's/.*missed="\([0-9]*\)".*/\1/p' | tail -1)
-          COVERED=$(grep '<counter type="LINE"' "$XML_REPORT" | sed -n 's/.*covered="\([0-9]*\)".*/\1/p' | tail -1)
-          TOTAL=$((MISSED + COVERED))
-          if [ "$TOTAL" -eq 0 ]; then
-            echo "ERROR: No coverage data (0 lines)"
-            exit 1
-          fi
-          PERCENT=$((COVERED * 100 / TOTAL))
-          echo "Coverage: ${PERCENT}% ($COVERED/$TOTAL lines)"
-          echo "percentage=$PERCENT" >> $GITHUB_OUTPUT
-          THRESHOLD=${{ inputs.coverage-threshold }}
-          if [ "$PERCENT" -lt "$THRESHOLD" ]; then
-            echo "ERROR: Coverage ${PERCENT}% below threshold ${THRESHOLD}%"
-            exit 1
-          fi
-          echo "SUCCESS: Coverage ${PERCENT}% >= ${THRESHOLD}%"
+        uses: TomasGC/Condor/.github/actions/check-coverage@main
+        with:
+          report-path: ${{ inputs.coverage-xml-path }}
+          threshold: ${{ inputs.coverage-threshold }}
 
       - if: always()
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
-          path: app/build/reports/kover/
+          path: ${{ inputs.coverage-artifact-path }}
           retention-days: ${{ inputs.retention-days }}
 
       - name: Create coverage badge
