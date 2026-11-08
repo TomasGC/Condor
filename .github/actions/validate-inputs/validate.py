@@ -86,10 +86,19 @@ def validate(module: str, values_json: str, specs_dir: Path = SPECS_DIR) -> list
     return errors
 
 
+def write_output(name: str, value: int) -> None:
+    """Set a step output when running in a workflow; the caller can then assert the reason, not just a failure."""
+    output_file = os.environ.get("GITHUB_OUTPUT")
+    if output_file:
+        with open(output_file, "a", encoding="utf-8") as output:
+            output.write(f"{name}={value}\n")
+
+
 def main() -> int:
     errors = validate(os.environ.get("CONDOR_MODULE", ""), os.environ.get("CONDOR_VALUES", ""))
     for line in errors:
         print(line)
+    write_output("rejected", len(errors))
     if errors:
         print(f"{len(errors)} input(s) rejected before anything ran", file=sys.stderr)
         return 1

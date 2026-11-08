@@ -22,5 +22,5 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: pip install pytest==9.0.3 -r .github/actions/validate-inputs/requirements.txt
+      - run: pip install pytest==9.0.3 pyyaml==6.0.2 -r .github/actions/validate-inputs/requirements.txt
       - run: python -m pytest -q

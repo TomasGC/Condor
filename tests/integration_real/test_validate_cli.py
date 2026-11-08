@@ -41,6 +41,22 @@ def test_a_value_with_shell_syntax_is_data_not_code(tmp_path):
     assert not marker.exists()
 
 
+def github_output(tmp_path, module, values):
+    output = tmp_path / "github_output"
+    env = {**os.environ, "CONDOR_MODULE": module, "CONDOR_VALUES": values, "GITHUB_OUTPUT": str(output)}
+    subprocess.run([sys.executable, str(SCRIPT)], env=env, capture_output=True, text=True, check=False)
+    return output.read_text(encoding="utf-8") if output.exists() else ""
+
+
+def test_the_number_of_rejected_inputs_is_a_step_output(tmp_path):
+    bad = {**VALID, "coverage-xml-path": "../x", "coverage-artifact-path": "/y"}
+    assert github_output(tmp_path, "kotlin-coverage", json.dumps(bad)).splitlines() == ["rejected=2"]
+
+
+def test_valid_inputs_report_zero_rejected(tmp_path):
+    assert github_output(tmp_path, "kotlin-coverage", json.dumps(VALID)).splitlines() == ["rejected=0"]
+
+
 def test_no_environment_is_an_error_not_a_crash():
     env = {key: value for key, value in os.environ.items() if not key.startswith("CONDOR_")}
     result = subprocess.run([sys.executable, str(SCRIPT)], env=env, capture_output=True, text=True, check=False)

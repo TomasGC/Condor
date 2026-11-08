@@ -9,13 +9,19 @@ inputs:
     description: "Name of the module whose spec to apply, e.g. kotlin-coverage."
     required: true
   values:
-    description: "The caller's inputs as a JSON object: pass ${{ toJSON(inputs) }}. Inputs the spec does not name are ignored."
+    description: "The caller's inputs as a JSON object: the toJSON of the inputs context. Inputs the spec does not name are ignored."
     required: true
+
+outputs:
+  rejected:
+    description: "How many inputs the spec rejected (0 when all are valid)."
+    value: ${{ steps.validate.outputs.rejected }}
 
 runs:
   using: composite
   steps:
     - name: Validate the inputs
+      id: validate
       shell: bash
       env:
         CONDOR_MODULE: ${{ inputs.module }}
