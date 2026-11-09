@@ -4,6 +4,18 @@ Track of work sessions and completed tasks linked to consuming project issues.
 
 ---
 
+2026-11-09 - [#30] Retry the Gradle distribution download before a job's first Gradle call
+- New `warm-gradle-wrapper` action: `./gradlew --version` with up to 4 attempts, a 10 s wait that doubles plus jitter, a warning per failed attempt and an error with Gradle's own output on the last; `attempts`, `backoff-seconds` and `working-directory` are checked as numbers and never echoed
+- Run right after every `setup-gradle` step of the Kotlin workflows (10 steps, 8 files); no input of any workflow changes, and a contract test fails if a step is left without it
+- Tests: 24 new (stub `gradlew` and `sleep`; a real wrapper pointed at an unreachable URL) and 10 contract cases, 238 on Linux; each was red first and six deliberate breaks of `warm.sh` were caught
+- Measured on Osprey, fresh branch, pinned to this change: 25 of 25 jobs green, 6 of the 15 jobs with the step downloaded Gradle in the first wave and 9 restored it from the cache, 0 retries; the retry path is proven by tests, not by a real failure
+- Not done: cache strategy kept as is (a once-per-OS prepare job is possible later if retries show up in real runs); project wrapper settings (`networkTimeout`, `retries`) are each project's own change
+tags: #gradle #ci #resilience
+Ref: https://github.com/TomasGC/Condor/issues/30
+Commit: d0d4a3b
+
+---
+
 2026-11-09 - [#27] Let a project name its Kover tasks and report path, under a versioned contract
 - `kotlin-coverage.yml` and `kotlin-push-ci.yml` take `coverage-report-tasks`, `coverage-xml-path` and `coverage-artifact-path`; the defaults are the old values, so a caller that sets none sees no change. Tasks run one `./gradlew` call each through `run-gradle-tasks`; the threshold check moved into `check-coverage`, whose missing-report error names the path, the variant-naming hint and the XML files found; a threshold of `nan` no longer passes every report
 - `validate-inputs` checks a module's inputs against a JSON Schema spec before anything uses them (early in push-ci, again in the coverage job): `::error::<input>: <rule> (got '<value>')`. A new input or module is a spec file plus test rows, not a change to the action
