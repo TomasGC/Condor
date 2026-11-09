@@ -1,7 +1,7 @@
 # Architecture - Condor
 
 **Purpose**: Workflow structure, design decisions, and cross-repo usage patterns
-**Last Updated**: 2026-10-07
+**Last Updated**: 2026-11-09
 
 ---
 
@@ -10,8 +10,12 @@
 ```
 .github/
 ├── actions/
-│   └── check-docs-only/
-│       └── action.yml                     # Composite: detect if push contains only .md changes
+│   ├── check-coverage/                    # Composite + check_coverage.py: line coverage vs threshold, missing-report diagnosis
+│   ├── check-docs-only/                   # Composite: detect if push contains only .md changes
+│   ├── run-gradle-tasks/                  # Composite + run.sh: one ./gradlew call per task of a JSON array
+│   └── validate-inputs/                   # Composite + validate.py + specs/<module>.json: inputs checked against a spec
+├── scripts/
+│   └── release.py                         # Cuts a release commit off main with internal refs pinned to the tag
 └── workflows/
     ├── common-context-check.yml           # Verify context files updated with code changes (dir + path regexes are inputs)
     ├── common-context-comment.yml         # Post PR comment if context files missing
@@ -20,7 +24,7 @@
     ├── common-security-checks.yml         # TruffleHog secret scan of the PR's changes
     ├── kotlin-build-apk.yml               # Debug APK build + size check
     ├── kotlin-cd.yml                      # Orchestrator: release pipeline
-    ├── kotlin-coverage.yml                # Kover coverage report + threshold enforcement
+    ├── kotlin-coverage.yml                # Kover coverage report + threshold enforcement; report tasks and paths are inputs
     ├── kotlin-detect-changes.yml          # Detect Kotlin/Gradle file changes + docs-only check
     ├── kotlin-env-android.yml             # Android environment: emulator tests in 2 shards + E2E (android) summary job
     ├── kotlin-env-desktop.yml             # Desktop environment on one OS (windows or linux): E2E (<os>)
@@ -55,6 +59,14 @@ pre-test-command: python scripts/manage.py create archives --rpa-only
 archives-local-dir: archives/
 device-archives-path: /sdcard/otter
 ```
+
+### 2b. Inputs Are Validated Before Use
+
+`validate-inputs` checks a module's inputs against `specs/<module>.json` (JSON Schema) as the first step that can run. Inputs reach a shell only through `env:`, never as `${{ }}` inside `run:`. The one exception is `pre-test-command`, a shell command the caller hands to Condor on purpose. Older inputs are not under a spec yet.
+
+### 2c. Additive Contract, Versioned Releases
+
+From `v1` on a change adds an input with a default; defaults are frozen. `release.py` makes the release commit (internal refs pinned to the exact tag); `@v1` moves, `@v1.N.0` never does. Rules and commands: README, "Versioning and compatibility".
 
 ### 3. Cross-Repo Context
 
@@ -206,8 +218,10 @@ with no marked tests would stay green while running nothing.
 `condor-lint.yml` (actionlint + shellcheck and the no-upload-from-fixtures check, every push), `condor-test-python.yml` (the Python pipeline on fixture
 projects under `tests/fixtures/`, every push) and `condor-test-pr.yml` (the PR pipeline on Condor's own PRs). A
 reusable workflow cannot be asserted to fail from its caller (`continue-on-error` is not allowed on a `uses:` job), so
-the negative case runs the guard with `fail-on-violation: false` and asserts its outputs. The Kotlin pipelines have no
-self-test yet (Android fixture, Gradle, emulator).
+the negative case runs the guard with `fail-on-violation: false` and asserts its outputs. `condor-test-scripts.yml` runs pytest (unit, integration_mock with a stub `gradlew`, integration_real with a real
+Gradle and Kover build of `tests/fixtures/kotlin-project`: a `debug` variant at 66% and a `merged` one at 60% of
+lines, so a test can tell which report was read) and `condor-test-validate-inputs.yml` runs the validator on a
+runner. The Kotlin pipelines as a whole have no self-test (emulator, Android SDK): a pinned run on Osprey stands in.
 
 `common-pr-ci.yml` calls its children with `./` paths: they come from the same Condor commit, so a caller pinning it
 to a SHA pins the whole PR pipeline. (Composite actions are the exception: `./` in a `uses:` of an action resolves
@@ -218,7 +232,7 @@ in the caller's checkout, so `check-docs-only` stays referenced as `TomasGC/Cond
 ## Kotlin Pipeline Flow
 
 ```
-validate-environments (an unknown name fails the run here)
+validate-environments (an unknown name, or a bad coverage input, fails the run here)
     │
 detect-changes
     │
@@ -230,9 +244,17 @@ detect-changes
     │               └── integration-real (matrix)
     │                       ├── build-apk ──→ e2e-android (only if android is listed)
     │                       ├── e2e-windows, e2e-linux (one JVM job each, if listed)
-    │                       └── coverage
+    │                       └── coverage (validates its inputs again, runs coverage-report-tasks, then check-coverage)
     └── (all blocked by detect-changes gate if skip-on-no-changes=true; an empty tier is skipped, not failed)
 ```
+
+---
+
+## Known Gaps and Direction
+
+- Pipeline logic is mostly inline shell in workflow YAML: the split into a CI-agnostic core and per-platform adapters, with a local runner, is #29.
+- A cold runner can fail on the Gradle distribution download: a retry in a `warm-gradle-wrapper` action is #30.
+- Older inputs, and the injection-shaped `${{ }}` in `run:` lines of the older workflows, are not under a spec yet (follow-up issues).
 
 ---
 
