@@ -132,10 +132,12 @@ from `v1` on.
   description, keeps working for at least one minor version, and is removed only in the next major version.
 - **Fixes.** A bug fix changes behaviour only where the old behaviour was wrong (a gate that passed on a
   missing report), and the release notes say so.
+- **Undeclared inputs.** A caller that passes an input the workflow does not declare fails at startup: no
+  job is created and the run shows only `startup_failure`. Removing or renaming an input breaks every caller
+  that passes it, which is why it waits for a major version.
 
 **Pinning.** `@v1` gets every additive change and no breaking one. `@v1.4.0` or a release commit never
-changes. `@main` is the development line and carries no guarantee; until the first tag exists every caller
-is on `@main`.
+changes. `@main` is the development line and carries no guarantee.
 
 **A release** is cut from a clean `main` that equals `origin/main`:
 
