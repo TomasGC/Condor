@@ -4,6 +4,19 @@ Track of work sessions and completed tasks linked to consuming project issues.
 
 ---
 
+2026-11-09 - [#27] Let a project name its Kover tasks and report path, under a versioned contract
+- `kotlin-coverage.yml` and `kotlin-push-ci.yml` take `coverage-report-tasks`, `coverage-xml-path` and `coverage-artifact-path`; the defaults are the old values, so a caller that sets none sees no change. Tasks run one `./gradlew` call each through `run-gradle-tasks`; the threshold check moved into `check-coverage`, whose missing-report error names the path, the variant-naming hint and the XML files found; a threshold of `nan` no longer passes every report
+- `validate-inputs` checks a module's inputs against a JSON Schema spec before anything uses them (early in push-ci, again in the coverage job): `::error::<input>: <rule> (got '<value>')`. A new input or module is a spec file plus test rows, not a change to the action
+- Contract: additive only, frozen defaults, a moving `@v1`; `release.py` cuts a release commit off `main` whose internal refs point at the exact tag. Rehearsed on a scratch remote; the first real release comes after the merge
+- Tests: a Gradle and Kover fixture (`debug` 66%, `merged` 60%), a stub-`gradlew` mock tier, 202 tests; each new test was red first and the code was broken on purpose to see it fail
+- Osprey pinned runs (#99): defaults and merged values (88%, 3319/3764), a bad value stopped before Gradle, a missing report and a failed threshold with a non-default artifact folder
+- Not run: Anglerfish, Otter, Raven. Found on the way: the Gradle download flake (#30), the core/adapters split (#29)
+tags: #versioning #validation #coverage #kover #security
+Ref: https://github.com/TomasGC/Condor/issues/27
+Commits: ad48b46, 6d66fc7, 6830042, 42fcc29, 198978e, 0ecd66c
+
+---
+
 2026-10-31 - [#25] Let the Kotlin pipelines read a private fixtures repository
 - `kotlin-push-ci.yml` takes `fixtures-repo`, `require-fixtures`, `fixtures-environment`, `install-ffmpeg` and `android-fixtures-device-path`; with none of them nothing changes. `.github/actions/fetch-fixtures` clones the private repository with a read-only deploy key into the runner's temp folder and exports `FIXTURES_DIR` (and `REQUIRE_FIXTURES=1`); the android environment pushes it to the emulator and passes `requireFixtures=1`; `.github/actions/install-ffmpeg` installs ffmpeg (apt on Linux, choco on Windows) for tests that decode with it
 - Measured on Osprey: an Environment's secret does not reach a called workflow (a calling job cannot declare an environment), so the key is a repository secret passed by `secrets: inherit` and the Environment only gates the branches; Git Bash on Windows eats the backslashes of `RUNNER_TEMP`, so the paths use forward slashes

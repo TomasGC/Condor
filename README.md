@@ -119,6 +119,58 @@ file is flat and named `<language>-<stage>.yml`. Pin a caller to a commit SHA (`
 
 ---
 
+## Versioning and compatibility
+
+Every project uses Condor, so a change must never break a caller that did not ask for it. These rules apply
+from `v1` on.
+
+- **Additive only.** A change adds an input with a default, an output, a workflow or an action. It never
+  removes or renames an input, changes an input's type, or changes a default. A change that cannot be
+  additive waits for the next major version (`v2`).
+- **Defaults are frozen.** A project that sets nothing runs the way it did on the day it adopted the version.
+- **Deprecation.** An input that is going away is marked "Deprecated: use X" in this README and in its
+  description, keeps working for at least one minor version, and is removed only in the next major version.
+- **Fixes.** A bug fix changes behaviour only where the old behaviour was wrong (a gate that passed on a
+  missing report), and the release notes say so.
+
+**Pinning.** `@v1` gets every additive change and no breaking one. `@v1.4.0` or a release commit never
+changes. `@main` is the development line and carries no guarantee; until the first tag exists every caller
+is on `@main`.
+
+**A release** is cut from a clean `main` that equals `origin/main`:
+
+    python .github/scripts/release.py 1.4.0 --push
+
+It makes a commit that is not on `main`, in which every internal reference
+(`TomasGC/Condor/.github/...@main`) points at `@v1.4.0`, tags it `v1.4.0`, and moves `v1` to it unless a newer
+release of the same major version exists. A caller on `@v1` therefore runs the workflows and actions of one
+release, and nothing floats on `main`. The script refuses a dirty tree, a `main` that differs from origin, a
+tag that already exists and a reference to a branch under test; `--dry-run` counts the files to rewrite and
+changes nothing.
+
+---
+
+## Input validation
+
+A workflow checks its inputs against a spec before anything uses them. A bad value fails in the first job, before a Gradle task or a shell step runs, with one line per rejected input:
+
+    ::error::coverage-xml-path: a relative path made of letters, digits and _ . / - (no '..', not starting with '/' or '-') (got '../a.xml')
+
+Specs are JSON Schema files in `.github/actions/validate-inputs/specs/<module>.json`, named after the module. Today: `kotlin-coverage`. The other inputs still rely on the type GitHub gives them; migrating them is tracked separately.
+
+### Adding an input or a module
+
+An input to a module that already has a spec:
+1. Add the property to `specs/<module>.json` with its type, its limits and an `x-rule` (the sentence an error shows), and add it to `required`.
+2. Give the workflow input a default. After a release the default never changes.
+3. Forward it from the orchestrator (`kotlin-push-ci.yml`) to the workflow.
+4. Add accepted and rejected rows to `tests/unit/test_validate_inputs.py` and the default to `tests/unit/test_workflow_contract.py`.
+5. Add the row to this README.
+
+A new module: the same, with a new `specs/<module>.json`, a `validate-inputs` step as the first step of the workflow (`values: ${{ toJSON(inputs) }}`), and a row in `condor-test-validate-inputs.yml`. The validator does not change.
+
+---
+
 ## Available Workflows
 
 ### Common
@@ -191,9 +243,26 @@ would run it, or when nothing is collected at all.
 | `android-fixtures-device-path` | string | `''` | Device folder the fixtures are pushed to before the android end-to-end tests; the tests get `requireFixtures=1` when `require-fixtures` is set |
 | `android-instrumentation-arguments` | string | `''` | Space-separated `key=value` pairs handed to the android end-to-end tests as instrumentation arguments, e.g. `grantViaPicker=1` |
 | `coverage-threshold` | number | `80` | Minimum coverage percentage |
+| `coverage-report-tasks` | string | `'["koverXmlReportDebug", "koverHtmlReportDebug"]'` | JSON array of Gradle tasks that write the coverage report. One `./gradlew` call per task, in order, all required; leave the HTML task out to skip the HTML report (see [Naming the coverage report](#naming-the-coverage-report)) |
+| `coverage-xml-path` | string | `app/build/reports/kover/reportDebug.xml` | XML report the threshold is read from; Kover names it `report<Variant>.xml` after the variant |
+| `coverage-artifact-path` | string | `app/build/reports/kover/` | Folder uploaded as the `coverage-report` artifact |
 | `apk-size-limit-mb` | number | `50` | Maximum APK size in MB |
 | `app-name` | string | `app` | App name for coverage badge and artifact naming |
 | `retention-days` | number | `7` | Artifact retention days |
+
+### Naming the coverage report
+
+The defaults read the `debug` variant of Kover. A project whose report has another variant names it with the three inputs; the XML file name follows the variant, so the tasks and the path name the same one:
+
+```yaml
+    with:
+      coverage-report-tasks: '["koverXmlReportMerged", "koverHtmlReportMerged"]'
+      coverage-xml-path: app/build/reports/kover/reportMerged.xml
+```
+
+- **All tasks are required.** A failing task fails the job; nothing is skipped silently.
+- **A missing report** fails with the path, the reminder that the variant decides the file name, and the XML files found next to it.
+- **A task name** is one Gradle task: no options (`-x`, `--init-script`), no spaces. The value is checked before anything runs (see [Input validation](#input-validation)).
 
 ### App environments
 
@@ -339,8 +408,10 @@ Condor runs its own pipelines on itself:
 | `condor-lint.yml` | every push | actionlint + shellcheck (warnings and up) on every workflow |
 | `condor-test-python.yml` | every push | `python-push-ci.yml` on `tests/fixtures/python-project` (all gates, four tiers, coverage; a `local_only` test fails if it ever runs) and the collection guard on `tests/fixtures/python-project-unmarked` |
 | `condor-test-pr.yml` | Condor's PRs | `common-pr-ci.yml` on the PR itself, called like the caller template: title (`#N: type: description`), context files, secret scan |
+| `condor-test-scripts.yml` | every push | pytest: unit; integration_mock (the `run-gradle-tasks` action against a stub `gradlew`); integration_real (the release script on a temporary remote, a real Gradle and Kover build of `tests/fixtures/kotlin-project`) |
+| `condor-test-validate-inputs.yml` | every push | the `validate-inputs` action on a runner: inputs that must pass, and bad values that must fail with the expected number of rejections |
 
-The Kotlin pipelines are not self-tested yet: that needs an Android fixture project, Gradle and an emulator.
+The Kotlin pipelines are tested in pieces: the actions on a Gradle and Kover fixture. The whole pipeline, with the emulator jobs, runs on a consuming project (Osprey, pinned to the Condor branch under test), not in Condor.
 
 ---
 

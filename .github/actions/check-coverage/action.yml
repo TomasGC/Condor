@@ -1,0 +1,30 @@
+name: Check coverage
+description: >
+  Reads the report-level LINE counter of a Kover or JaCoCo XML report, prints the percentage and fails when it is
+  below the threshold or the report is missing. A missing report names the path, the likely cause and the XML files
+  found next to it.
+
+inputs:
+  report-path:
+    description: "Path of the XML report, relative to the workspace."
+    required: true
+  threshold:
+    description: "Minimum line coverage in percent."
+    required: true
+
+outputs:
+  percentage:
+    description: "Line coverage as a whole percent (rounded down)."
+    value: ${{ steps.check.outputs.percentage }}
+
+runs:
+  using: composite
+  steps:
+    - name: Check the report
+      id: check
+      shell: bash
+      env:
+        COVERAGE_XML_PATH: ${{ inputs.report-path }}
+        COVERAGE_THRESHOLD: ${{ inputs.threshold }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: python3 "$ACTION_PATH/check_coverage.py" "$GITHUB_OUTPUT"
