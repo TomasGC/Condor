@@ -139,6 +139,16 @@ def test_main_reads_the_environment(tmp_path, monkeypatch, capsys):
     assert check_coverage.main() == 0
 
 
+@pytest.mark.parametrize("value", ["nan", "NaN", "inf", "-inf", "Infinity", "1e999"])
+def test_main_refuses_a_threshold_that_is_not_finite_instead_of_passing_every_report(tmp_path, monkeypatch, capsys, value):
+    """`nan` compares false with everything, so `percent < nan` would let a 10% report through."""
+    monkeypatch.setattr("sys.argv", ["check_coverage.py"])
+    monkeypatch.setenv("COVERAGE_XML_PATH", report(tmp_path / "r.xml", 1, 9))
+    monkeypatch.setenv("COVERAGE_THRESHOLD", value)
+    assert check_coverage.main() == 1
+    assert "::error::coverage-threshold: must be a finite number" in capsys.readouterr().out
+
+
 @pytest.mark.parametrize("value", [None, "", "eighty", "nan-ish"])
 def test_main_refuses_a_threshold_that_is_not_a_number(tmp_path, monkeypatch, capsys, value):
     monkeypatch.setattr("sys.argv", ["check_coverage.py"])
@@ -148,4 +158,4 @@ def test_main_refuses_a_threshold_that_is_not_a_number(tmp_path, monkeypatch, ca
     else:
         monkeypatch.setenv("COVERAGE_THRESHOLD", value)
     assert check_coverage.main() == 1
-    assert "::error::coverage-threshold: must be a number" in capsys.readouterr().out
+    assert "::error::coverage-threshold: must be a finite number" in capsys.readouterr().out

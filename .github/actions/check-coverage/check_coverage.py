@@ -3,6 +3,7 @@
 Input: COVERAGE_XML_PATH and COVERAGE_THRESHOLD in the environment; an optional first argument names a file that
 receives `percentage=<n>` (the adapter passes the platform's output file). Exit 0 when the threshold is met.
 """
+import math
 import os
 import sys
 import xml.etree.ElementTree as ET
@@ -70,7 +71,10 @@ def main() -> int:
     try:
         threshold = float(os.environ["COVERAGE_THRESHOLD"])
     except (KeyError, ValueError):
-        return fail("coverage-threshold: must be a number")
+        threshold = math.nan
+    if not math.isfinite(threshold):
+        # nan compares false with every percentage, so a gate built on `percent < nan` would pass any report
+        return fail("coverage-threshold: must be a finite number")
     return check(os.environ.get("COVERAGE_XML_PATH", ""), threshold, sys.argv[1] if len(sys.argv) > 1 else None)
 
 
