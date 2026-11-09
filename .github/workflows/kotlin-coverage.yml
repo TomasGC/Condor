@@ -76,7 +76,7 @@ jobs:
     environment: ${{ inputs.fixtures-environment != '' && inputs.fixtures-environment || null }}
     steps:
       - name: Validate the coverage inputs
-        uses: TomasGC/Condor/.github/actions/validate-inputs@main
+        uses: TomasGC/Condor/.github/actions/validate-inputs@v1.0.0
         with:
           module: kotlin-coverage
           values: ${{ toJSON(inputs) }}
@@ -91,10 +91,10 @@ jobs:
 
       - name: Install ffmpeg
         if: inputs.install-ffmpeg
-        uses: TomasGC/Condor/.github/actions/install-ffmpeg@main
+        uses: TomasGC/Condor/.github/actions/install-ffmpeg@v1.0.0
       - name: Fetch the private fixtures
         if: inputs.fixtures-repo != ''
-        uses: TomasGC/Condor/.github/actions/fetch-fixtures@main
+        uses: TomasGC/Condor/.github/actions/fetch-fixtures@v1.0.0
         with:
           repository: ${{ inputs.fixtures-repo }}
           deploy-key: ${{ secrets.FIXTURES_DEPLOY_KEY }}
@@ -126,13 +126,13 @@ jobs:
         run: ${{ inputs.pre-test-command }}
 
       - name: Generate the coverage report
-        uses: TomasGC/Condor/.github/actions/run-gradle-tasks@main
+        uses: TomasGC/Condor/.github/actions/run-gradle-tasks@v1.0.0
         with:
           tasks: ${{ inputs.coverage-report-tasks }}
 
       - name: Verify coverage threshold
         id: coverage
-        uses: TomasGC/Condor/.github/actions/check-coverage@main
+        uses: TomasGC/Condor/.github/actions/check-coverage@v1.0.0
         with:
           report-path: ${{ inputs.coverage-xml-path }}
           threshold: ${{ inputs.coverage-threshold }}

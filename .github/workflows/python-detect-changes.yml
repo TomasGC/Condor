@@ -27,7 +27,7 @@ jobs:
       docs-only: ${{ steps.docs-check.outputs.result }}
     steps:
       - uses: actions/checkout@v4
-      - uses: TomasGC/Condor/.github/actions/check-docs-only@main
+      - uses: TomasGC/Condor/.github/actions/check-docs-only@v1.0.0
         id: docs-check
         with:
           before: ${{ github.event.before }}

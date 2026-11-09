@@ -130,7 +130,7 @@ jobs:
             exit 1
           fi
       - name: Validate the coverage inputs
-        uses: TomasGC/Condor/.github/actions/validate-inputs@main
+        uses: TomasGC/Condor/.github/actions/validate-inputs@v1.0.0
         with:
           module: kotlin-coverage
           values: ${{ toJSON(inputs) }}
