@@ -264,6 +264,14 @@ The defaults read the `debug` variant of Kover. A project whose report has anoth
 - **A missing report** fails with the path, the reminder that the variant decides the file name, and the XML files found next to it.
 - **A task name** is one Gradle task: no options (`-x`, `--init-script`), no spaces. The value is checked before anything runs (see [Input validation](#input-validation)).
 
+### Gradle download retries
+
+Every Kotlin job runs the `warm-gradle-wrapper` action right after `setup-gradle`. It runs `./gradlew --version`, which downloads the Gradle distribution named by the project's wrapper, and retries a failed download up to 4 times. The wait starts at 10 seconds and doubles after each failure, plus up to a quarter of jitter, so parallel jobs do not retry together.
+
+- **A failed try** prints a warning naming the attempt. The last failure prints an error with Gradle's own output above it, so a failure that is not a download is not hidden.
+- **A caller sets nothing.** The step is part of every Kotlin workflow and changes no input. A project that calls the action directly has `attempts` (1 to 10), `backoff-seconds` (0 to 120) and `working-directory`.
+- **The project's wrapper settings still apply** to the download itself: `networkTimeout` bounds each try, and `retries` (Gradle 9 and later) adds tries inside it.
+
 ### App environments
 
 A project says where its app runs, and the pipeline works out the rest:
@@ -408,7 +416,7 @@ Condor runs its own pipelines on itself:
 | `condor-lint.yml` | every push | actionlint + shellcheck (warnings and up) on every workflow |
 | `condor-test-python.yml` | every push | `python-push-ci.yml` on `tests/fixtures/python-project` (all gates, four tiers, coverage; a `local_only` test fails if it ever runs) and the collection guard on `tests/fixtures/python-project-unmarked` |
 | `condor-test-pr.yml` | Condor's PRs | `common-pr-ci.yml` on the PR itself, called like the caller template: title (`#N: type: description`), context files, secret scan |
-| `condor-test-scripts.yml` | every push | pytest: unit; integration_mock (the `run-gradle-tasks` action against a stub `gradlew`); integration_real (the release script on a temporary remote, a real Gradle and Kover build of `tests/fixtures/kotlin-project`) |
+| `condor-test-scripts.yml` | every push | pytest: unit; integration_mock (the `run-gradle-tasks` and `warm-gradle-wrapper` actions against a stub `gradlew`); integration_real (the release script on a temporary remote, a real Gradle and Kover build of `tests/fixtures/kotlin-project`, the wrapper download against an unreachable URL) |
 | `condor-test-validate-inputs.yml` | every push | the `validate-inputs` action on a runner: inputs that must pass, and bad values that must fail with the expected number of rejections |
 
 The Kotlin pipelines are tested in pieces: the actions on a Gradle and Kover fixture. The whole pipeline, with the emulator jobs, runs on a consuming project (Osprey, pinned to the Condor branch under test), not in Condor.

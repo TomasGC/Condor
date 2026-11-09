@@ -1,0 +1,31 @@
+name: Warm the Gradle wrapper
+description: >
+  Downloads the Gradle distribution named by the project's wrapper before the first real Gradle call, and retries
+  with exponential backoff and jitter when the download fails. A failure that is not a download is not hidden:
+  it fails on the last attempt with Gradle's own output above it.
+
+inputs:
+  attempts:
+    description: "Number of tries, 1 to 10."
+    required: false
+    default: "4"
+  backoff-seconds:
+    description: "Wait before the second try, 0 to 120. It doubles after each failure, plus up to a quarter of jitter."
+    required: false
+    default: "10"
+  working-directory:
+    description: "Directory holding the Gradle wrapper."
+    required: false
+    default: "."
+
+runs:
+  using: composite
+  steps:
+    - name: Download the Gradle distribution
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        CONDOR_ATTEMPTS: ${{ inputs.attempts }}
+        CONDOR_BACKOFF_SECONDS: ${{ inputs.backoff-seconds }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: bash "$ACTION_PATH/warm.sh"

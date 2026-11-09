@@ -13,7 +13,8 @@
 │   ├── check-coverage/                    # Composite + check_coverage.py: line coverage vs threshold, missing-report diagnosis
 │   ├── check-docs-only/                   # Composite: detect if push contains only .md changes
 │   ├── run-gradle-tasks/                  # Composite + run.sh: one ./gradlew call per task of a JSON array
-│   └── validate-inputs/                   # Composite + validate.py + specs/<module>.json: inputs checked against a spec
+│   ├── validate-inputs/                   # Composite + validate.py + specs/<module>.json: inputs checked against a spec
+│   └── warm-gradle-wrapper/               # Composite + warm.sh: ./gradlew --version with retry, backoff and jitter
 ├── scripts/
 │   └── release.py                         # Cuts a release commit off main with internal refs pinned to the tag
 └── workflows/
@@ -253,7 +254,7 @@ detect-changes
 ## Known Gaps and Direction
 
 - Pipeline logic is mostly inline shell in workflow YAML: the split into a CI-agnostic core and per-platform adapters, with a local runner, is #29.
-- A cold runner can fail on the Gradle distribution download: a retry in a `warm-gradle-wrapper` action is #30.
+- A cold runner can fail on the Gradle distribution download (seen twice on Osprey, a third time on the `@v1` probe: HTTP 500). Every Kotlin job now retries it through `warm-gradle-wrapper` (#30). Not done: the cache decision (a prepare job, or a default-branch cache) waits for a cold-branch measurement, and the per-project wrapper settings are the projects' own changes.
 - Older inputs, and the injection-shaped `${{ }}` in `run:` lines of the older workflows, are not under a spec yet (follow-up issues).
 
 ---

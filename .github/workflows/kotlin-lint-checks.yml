@@ -26,6 +26,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
         with:
           cache-read-only: false
+      - uses: TomasGC/Condor/.github/actions/warm-gradle-wrapper@main
       - uses: actions/cache@v4
         with:
           path: |
@@ -74,6 +75,7 @@ jobs:
           distribution: 'temurin'
           java-version: ${{ inputs.java-version }}
       - uses: gradle/actions/setup-gradle@v6
+      - uses: TomasGC/Condor/.github/actions/warm-gradle-wrapper@main
       - run: ./gradlew detekt
       - if: always()
         uses: actions/upload-artifact@v4
