@@ -59,6 +59,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
         with:
           cache-read-only: false
+      - uses: TomasGC/Condor/.github/actions/warm-gradle-wrapper@main
       - uses: actions/setup-python@v5
         if: inputs.pre-test-command != ''
         with:

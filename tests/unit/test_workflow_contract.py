@@ -76,3 +76,30 @@ def test_no_expression_sits_inside_a_shell_step_of_the_coverage_workflow():
         if "${{" in str(step.get("run", "")) and ("coverage", step.get("name")) not in SHELL_EXPRESSION_EXCEPTIONS
     ]
     assert offenders == []
+
+
+WARM_ACTION = "TomasGC/Condor/.github/actions/warm-gradle-wrapper@"
+
+
+def setup_gradle_steps():
+    """(workflow, job, index, steps) for every gradle/actions/setup-gradle step of every Kotlin workflow."""
+    found = []
+    for path in sorted(WORKFLOWS.glob("kotlin-*.yml")):
+        for job, body in load(path.name)["jobs"].items():
+            steps = body.get("steps", [])
+            found += [(path.name, job, i, steps) for i, s in enumerate(steps) if "setup-gradle" in s.get("uses", "")]
+    return found
+
+
+def test_the_setup_gradle_steps_are_all_found():
+    assert len(setup_gradle_steps()) >= 10
+
+
+@pytest.mark.parametrize(
+    ("workflow", "job", "index", "steps"),
+    setup_gradle_steps(),
+    ids=lambda value: value if isinstance(value, (str, int)) else "",
+)
+def test_every_setup_gradle_step_is_followed_by_the_warm_step(workflow, job, index, steps):
+    assert index + 1 < len(steps), f"{workflow} {job}: nothing after setup-gradle"
+    assert steps[index + 1].get("uses", "").startswith(WARM_ACTION), f"{workflow} {job}: no warm step after setup-gradle"
