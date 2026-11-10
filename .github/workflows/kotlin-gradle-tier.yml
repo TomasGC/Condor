@@ -59,7 +59,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
         with:
           cache-read-only: false
-      - uses: TomasGC/Condor/.github/actions/warm-gradle-wrapper@main
+      - uses: TomasGC/Condor/.github/actions/warm-gradle-wrapper@v1.1.0
       - uses: actions/setup-python@v5
         if: inputs.pre-test-command != ''
         with:
@@ -69,10 +69,10 @@ jobs:
         run: ${{ inputs.pre-test-command }}
       - name: Install ffmpeg
         if: inputs.install-ffmpeg
-        uses: TomasGC/Condor/.github/actions/install-ffmpeg@main
+        uses: TomasGC/Condor/.github/actions/install-ffmpeg@v1.1.0
       - name: Fetch the private fixtures
         if: inputs.fixtures-repo != ''
-        uses: TomasGC/Condor/.github/actions/fetch-fixtures@main
+        uses: TomasGC/Condor/.github/actions/fetch-fixtures@v1.1.0
         with:
           repository: ${{ inputs.fixtures-repo }}
           deploy-key: ${{ secrets.FIXTURES_DEPLOY_KEY }}

@@ -35,7 +35,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
         with:
           cache-read-only: false
-      - uses: TomasGC/Condor/.github/actions/warm-gradle-wrapper@main
+      - uses: TomasGC/Condor/.github/actions/warm-gradle-wrapper@v1.1.0
       - uses: actions/cache/restore@v4
         with:
           path: ~/.gradle/dependency-check-data/

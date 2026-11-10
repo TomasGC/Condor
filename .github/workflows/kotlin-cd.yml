@@ -25,7 +25,7 @@ jobs:
           distribution: 'temurin'
           java-version: ${{ inputs.java-version }}
       - uses: gradle/actions/setup-gradle@v6
-      - uses: TomasGC/Condor/.github/actions/warm-gradle-wrapper@main
+      - uses: TomasGC/Condor/.github/actions/warm-gradle-wrapper@v1.1.0
       - name: Run release unit tests
         run: ./gradlew testReleaseUnitTest
 
@@ -52,7 +52,7 @@ jobs:
           java-version: ${{ inputs.java-version }}
 
       - uses: gradle/actions/setup-gradle@v6
-      - uses: TomasGC/Condor/.github/actions/warm-gradle-wrapper@main
+      - uses: TomasGC/Condor/.github/actions/warm-gradle-wrapper@v1.1.0
 
       - name: Build and sign release APK
         env:
